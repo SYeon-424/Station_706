@@ -196,7 +196,7 @@ const LEVELS = [
     width: 800, height: 650, start:{x:40,y:560},
     grounds: [
       {x:0,   y:590, w:130, h:60},
-      {x:550, y:150, w:250, h:20}
+      {x:460, y:150, w:250, h:20}
     ],
     bridges: [],
     movingPlatforms: [ {x0:380,y0:420,x1:380,y1:180,w:60,h:18,period:3000} ],
@@ -206,7 +206,7 @@ const LEVELS = [
     ],
     hazards: [], launchPads: [],
     gates: [
-      { id:'g_final', plateA:{x:580,y:130,w:34,h:10}, plateB:{x:650,y:130,w:34,h:10}, gateX:730 }
+      { id:'g_final', plateA:{x:490,y:130,w:34,h:10}, plateB:{x:560,y:130,w:34,h:10}, gateX:640 }
     ]
   },
   { // STAGE 9 - 브릿지 + 발사대 + 레이저 혼합
@@ -265,6 +265,9 @@ const LEVELS = [
 let currentLevel = 0;
 let advancing = false;
 let launchArmed = {};
+let riddenMpIndex = null;
+let riddenMpPrevRect = null;
+let lastLandedMpIndex = null;
 function L(){ return LEVELS[currentLevel]; }
 
 function getMovingPlatformRect(mp, t){
@@ -400,8 +403,10 @@ function getActivePlatforms(bridgeStates, t){
     solids.push(...b.switchPads);
     if(bridgeStates[b.id]) solids.push(b.rect);
   });
-  lvl.movingPlatforms.forEach(mp=>{
-    solids.push(getMovingPlatformRect(mp, t));
+  lvl.movingPlatforms.forEach((mp,idx)=>{
+    const r = getMovingPlatformRect(mp, t);
+    r.__mpIndex = idx;
+    solids.push(r);
   });
   lvl.crumbles.forEach(c=>{
     if(crumbleIsSolid(c, t)) solids.push(c.rect);
@@ -443,9 +448,10 @@ function stepPhysics(bridgeStates, t, dt){
   p.y += p.vy * dt;
   b = box();
   p.onGround = false;
+  lastLandedMpIndex = null;
   for(const s of solids){
     if(rectsOverlap(b,s)){
-      if(p.vy > 0){ p.y = s.y; p.onGround = true; p.vy = 0; }
+      if(p.vy > 0){ p.y = s.y; p.onGround = true; p.vy = 0; if(s.__mpIndex !== undefined) lastLandedMpIndex = s.__mpIndex; }
       else if(p.vy < 0){ p.y = s.y + s.h + PH; p.vy = 0; }
       b = box();
     }
@@ -615,7 +621,20 @@ function gameLoop(){
   const bridgeStates = {};
   lvl.bridges.forEach(b=>{ bridgeStates[b.id] = isBridgeActive(b, myPlayer, preview); });
 
+  // if we were standing on a moving platform last frame, carry the player along with it
+  if(riddenMpIndex !== null && lvl.movingPlatforms[riddenMpIndex]){
+    const newRect = getMovingPlatformRect(lvl.movingPlatforms[riddenMpIndex], t);
+    if(riddenMpPrevRect){
+      myPlayer.x += newRect.x - riddenMpPrevRect.x;
+      myPlayer.y += newRect.y - riddenMpPrevRect.y;
+    }
+    riddenMpPrevRect = newRect;
+  } else {
+    riddenMpPrevRect = null;
+  }
+
   stepPhysics(bridgeStates, t, dt);
+  riddenMpIndex = lastLandedMpIndex;
 
   // toggle bridges latch on once pressed
   lvl.bridges.forEach(b=>{
@@ -748,6 +767,8 @@ function setupRealtime(){
         currentLevel = Math.max(0, Math.min(LEVELS.length-1, lvl));
         advancing = false;
         launchArmed = {};
+        riddenMpIndex = null;
+        riddenMpPrevRect = null;
         lastFrameTime = null;
         const sp = startPos();
         myPlayer.x = sp.x; myPlayer.y = sp.y; myPlayer.vx = 0; myPlayer.vy = 0;
