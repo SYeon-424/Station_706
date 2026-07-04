@@ -162,19 +162,19 @@ const LEVELS = [
     width: 750, height: 650, start:{x:40,y:70},
     grounds: [
       {x:0,   y:100, w:150, h:20},
-      {x:250, y:260, w:150, h:20},
-      {x:100, y:420, w:150, h:20},
-      {x:300, y:580, w:450, h:60}
+      {x:270, y:260, w:150, h:20},
+      {x:0,   y:420, w:150, h:20},
+      {x:0,   y:580, w:750, h:60}
     ],
     bridges: [], movingPlatforms: [],
     crumbles: [],
     hazards: [
-      { id:'h1', rect:{x:190,y:80, w:24,h:220}, period:1800, activeFraction:0.45 },
-      { id:'h2', rect:{x:220,y:260,w:24,h:200}, period:1600, activeFraction:0.45 }
+      { id:'h1', rect:{x:150,y:80, w:120,h:240}, period:1500, activeFraction:0.5 },
+      { id:'h2', rect:{x:150,y:240,w:120,h:200}, period:1400, activeFraction:0.5 }
     ],
     launchPads: [],
     gates: [
-      { id:'g_final', plateA:{x:500,y:560,w:34,h:10}, plateB:{x:600,y:560,w:34,h:10}, gateX:680 }
+      { id:'g_final', plateA:{x:300,y:560,w:34,h:10}, plateB:{x:450,y:560,w:34,h:10}, gateX:600 }
     ]
   },
   { // STAGE 7 - 협동 발사대 위주: 둘이 동시에 밟아야 저 위까지 튀어오른다
@@ -186,7 +186,7 @@ const LEVELS = [
     ],
     bridges: [], movingPlatforms: [], crumbles: [], hazards: [],
     launchPads: [
-      { id:'lp1', padA:{x:60,y:460,w:34,h:10}, padB:{x:120,y:460,w:34,h:10}, boost:-20 }
+      { id:'lp1', padA:{x:60,y:460,w:34,h:10}, padB:{x:120,y:460,w:34,h:10}, boost:-22 }
     ],
     gates: [
       { id:'g_final', plateA:{x:730,y:360,w:34,h:10}, plateB:{x:800,y:360,w:34,h:10}, gateX:870 }
@@ -406,7 +406,7 @@ function getActivePlatforms(bridgeStates, t){
   return solids;
 }
 
-function stepPhysics(bridgeStates, t){
+function stepPhysics(bridgeStates, t, dt){
   const p = myPlayer;
   const lvl = L();
   const sp = startPos();
@@ -415,13 +415,13 @@ function stepPhysics(bridgeStates, t){
   if(keys.has('ArrowRight')||keys.has('KeyD')) moveX += 1;
   p.vx = moveX * MOVE_SPEED;
   if((keys.has('Space')||keys.has('ArrowUp')||keys.has('KeyW')) && p.onGround){ p.vy = JUMP_V; p.onGround = false; }
-  p.vy += GRAVITY;
+  p.vy += GRAVITY * dt;
   if(p.vy > 14) p.vy = 14;
 
   const solids = getActivePlatforms(bridgeStates, t);
   const box = ()=>({x:p.x-PW/2, y:p.y-PH, w:PW, h:PH});
 
-  p.x += p.vx;
+  p.x += p.vx * dt;
   let b = box();
   for(const s of solids){
     if(rectsOverlap(b,s)){
@@ -429,7 +429,7 @@ function stepPhysics(bridgeStates, t){
       b = box();
     }
   }
-  p.y += p.vy;
+  p.y += p.vy * dt;
   b = box();
   p.onGround = false;
   for(const s of solids){
@@ -591,16 +591,20 @@ function getInterpolatedRemotePositions(){
 }
 
 // ---------- GAME LOOP ----------
+let lastFrameTime = null;
 function gameLoop(){
   const lvl = L();
   const t = Date.now();
+  let dt = lastFrameTime ? (t - lastFrameTime) / 16.6667 : 1; // normalize to "60fps frames"
+  dt = Math.max(0.2, Math.min(2.5, dt)); // clamp against tab-switch/lag spikes
+  lastFrameTime = t;
   const preview = getInterpolatedRemotePositions();
 
   // resolve bridge states first (hold-type needs live positions)
   const bridgeStates = {};
   lvl.bridges.forEach(b=>{ bridgeStates[b.id] = isBridgeActive(b, myPlayer, preview); });
 
-  stepPhysics(bridgeStates, t);
+  stepPhysics(bridgeStates, t, dt);
 
   // toggle bridges latch on once pressed
   lvl.bridges.forEach(b=>{
@@ -733,6 +737,7 @@ function setupRealtime(){
         currentLevel = Math.max(0, Math.min(LEVELS.length-1, lvl));
         advancing = false;
         launchArmed = {};
+        lastFrameTime = null;
         const sp = startPos();
         myPlayer.x = sp.x; myPlayer.y = sp.y; myPlayer.vx = 0; myPlayer.vy = 0;
         updateStageIndicator();
