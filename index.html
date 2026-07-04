@@ -262,7 +262,7 @@ const LEVELS = [
     ]
   }
 ];
-let currentLevel = 8;
+let currentLevel = 0;
 let advancing = false;
 let launchArmed = {};
 function L(){ return LEVELS[currentLevel]; }
@@ -345,13 +345,24 @@ function renderShell(){
       <div id="clearBanner"></div>
     </div>
     <div class="controls-hint">← → 이동 · Space / ↑ 점프 &nbsp;|&nbsp; 스위치·붕괴발판·레이저·발사대 등 스테이지마다 다른 기믹이 등장한다</div>
-    <a class="link-reset" id="resetLink" style="display:block;text-align:center;margin-top:10px;">방 전체 초기화 (스테이지 1부터)</a>
+    <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <a class="link-reset" id="resetLink">방 전체 초기화 (스테이지 1부터)</a>
+      <span class="small">|</span>
+      <span class="small">디버그: 스테이지</span>
+      <input type="text" id="jumpStageInput" placeholder="1-10" style="width:60px;padding:4px 8px;font-size:12px;">
+      <button id="jumpStageBtn" style="padding:4px 10px;font-size:12px;">이동</button>
+    </div>
   `;
   canvas = document.getElementById('gameCanvas');
   ctx = canvas.getContext('2d');
   document.getElementById('resetLink').onclick = async ()=>{
     if(!confirm("이 방을 스테이지 1부터 초기화할까요?")) return;
     await db.ref(`rooms/${roomCode}/state`).set({level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}});
+  };
+  document.getElementById('jumpStageBtn').onclick = async ()=>{
+    const n = parseInt(document.getElementById('jumpStageInput').value, 10);
+    if(!n || n < 1 || n > LEVELS.length) return;
+    await db.ref(`rooms/${roomCode}/state`).set({level: n-1, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}});
   };
 }
 
