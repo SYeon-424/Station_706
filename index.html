@@ -83,7 +83,23 @@ let myName = "";
 let roomCode = "";
 let pollTimer = null;
 let heartbeatTimer = null;
-let lastRenderedTick = null;
+let lastAppliedTick = null;
+let pendingFullRender = false;
+let currentView = "cryo"; // which room panel I'm looking at locally
+
+const PLAYER_COLORS = ["#4ade80", "#f5a524", "#7dd3fc", "#f472b6"];
+function colorFor(name, names){
+  const idx = names.indexOf(name);
+  return PLAYER_COLORS[idx % PLAYER_COLORS.length];
+}
+
+const ROOMS = {
+  cryo:    { label: "캡슐실",     x: 60,  y: 90 },
+  corridor:{ label: "통로",       x: 220, y: 90 },
+  archive: { label: "기록보관소", x: 380, y: 40 },
+  podbay:  { label: "탈출포드실", x: 380, y: 140 }
+};
+const EDGES = [["cryo","corridor"],["corridor","archive"],["corridor","podbay"]];
 
 const LOGS = {
   0: {tag:"SYSTEM LOG // 00:00", text:"관측선 마고 3호, 표류 정거장 706 접근 완료. 정거장 내 생명반응 없음. 냉동캡슐 두 기, 원인 불명의 활성화 신호 감지됨. 산소 재순환 장치 가동 — 잔량 위험 수준."},
@@ -100,10 +116,16 @@ function defaultState(){
     wrongAttempts: 0,
     revealedLogs: [0,1],
     solved: {1:false,2:false,3:false},
+    unlockedRooms: ["cryo","corridor"],
     ending: null,
     players: {},
     updatedAt: Date.now()
   };
+}
+
+function isInputFocused(){
+  const a = document.activeElement;
+  return a && a.tagName === 'INPUT';
 }
 
 async function loadState(){
@@ -163,30 +185,106 @@ function renderLogin(){
   };
 }
 
-function pulseSVG(presence){
-  const danger = presence >= 60;
-  const color = danger ? "var(--red)" : "var(--green)";
-  const jitter = danger ? 6 : 1;
-  let d = "M0,22 ";
-  for(let x=0;x<=700;x+=20){
-    const spike = (x/20)%5===0 ? (danger ? 18+Math.random()*jitter : 14) : 0;
-    const dir = ((x/20)%2===0) ? -1 : 1;
-    d += `L${x},${22 + dir*spike} `;
+function roomArt(id, danger){
+  const glow = danger ? "var(--red)" : "var(--green)";
+  if(id === 'cryo'){
+    return `<svg viewBox="0 0 300 160" width="100%" height="150">
+      <rect x="0" y="0" width="300" height="160" fill="#0a0f16"/>
+      <g stroke="${glow}" stroke-width="1.5" fill="none" opacity="0.9">
+        <rect x="50" y="20" width="55" height="120" rx="22"/>
+        <rect x="150" y="20" width="55" height="120" rx="22"/>
+        <line x1="77" y1="30" x2="77" y2="130" stroke-dasharray="3,4" opacity="0.5"/>
+        <line x1="177" y1="30" x2="177" y2="130" stroke-dasharray="3,4" opacity="0.5"/>
+      </g>
+      <circle cx="77" cy="70" r="4" fill="${glow}"><animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite"/></circle>
+      <circle cx="177" cy="70" r="4" fill="${glow}"><animate attributeName="opacity" values="1;0.2;1" dur="2.4s" repeatCount="indefinite"/></circle>
+      <text x="150" y="152" text-anchor="middle" fill="#5a6675" font-size="9" font-family="monospace">CRYO BAY // 냉동캡슐 두 기</text>
+    </svg>`;
   }
-  return `<svg id="pulse" viewBox="0 0 700 44" preserveAspectRatio="none">
-    <path d="${d}" fill="none" stroke="${color}" stroke-width="2"/>
+  if(id === 'corridor'){
+    return `<svg viewBox="0 0 300 160" width="100%" height="150">
+      <rect x="0" y="0" width="300" height="160" fill="#0a0f16"/>
+      <g stroke="${glow}" stroke-width="1" opacity="0.6">
+        <line x1="0" y1="40" x2="300" y2="40"/>
+        <line x1="0" y1="120" x2="300" y2="120"/>
+      </g>
+      <g fill="${glow}" opacity="0.85">
+        <rect x="20" y="76" width="18" height="6"><animate attributeName="opacity" values="0.9;0.2;0.9" dur="1.6s" repeatCount="indefinite"/></rect>
+        <rect x="90" y="76" width="18" height="6"><animate attributeName="opacity" values="0.2;0.9;0.2" dur="1.6s" repeatCount="indefinite"/></rect>
+        <rect x="160" y="76" width="18" height="6"><animate attributeName="opacity" values="0.9;0.2;0.9" dur="2s" repeatCount="indefinite"/></rect>
+        <rect x="230" y="76" width="18" height="6"><animate attributeName="opacity" values="0.2;0.9;0.2" dur="2s" repeatCount="indefinite"/></rect>
+      </g>
+      <text x="150" y="152" text-anchor="middle" fill="#5a6675" font-size="9" font-family="monospace">CORRIDOR // 정거장 통로</text>
+    </svg>`;
+  }
+  if(id === 'archive'){
+    return `<svg viewBox="0 0 300 160" width="100%" height="150">
+      <rect x="0" y="0" width="300" height="160" fill="#0a0f16"/>
+      <rect x="90" y="20" width="120" height="80" fill="none" stroke="${glow}" stroke-width="1.5"/>
+      <g stroke="${glow}" stroke-width="1" opacity="0.7">
+        <line x1="100" y1="34" x2="180" y2="34"/>
+        <line x1="100" y1="46" x2="200" y2="46"/>
+        <line x1="100" y1="58" x2="160" y2="58"/>
+        <line x1="100" y1="70" x2="190" y2="70"/>
+        <line x1="100" y1="82" x2="150" y2="82"/>
+      </g>
+      <rect x="130" y="110" width="40" height="40" fill="none" stroke="${glow}" stroke-width="1.5" opacity="0.8"/>
+      <text x="150" y="152" text-anchor="middle" fill="#5a6675" font-size="9" font-family="monospace">ARCHIVE // 기록 단말기</text>
+    </svg>`;
+  }
+  if(id === 'podbay'){
+    return `<svg viewBox="0 0 300 160" width="100%" height="150">
+      <rect x="0" y="0" width="300" height="160" fill="#050810"/>
+      <circle cx="230" cy="40" r="1.2" fill="#8a98a8"/>
+      <circle cx="250" cy="70" r="1" fill="#8a98a8"/>
+      <circle cx="200" cy="90" r="1.4" fill="#8a98a8"/>
+      <circle cx="270" cy="30" r="1" fill="#8a98a8"/>
+      <ellipse cx="90" cy="90" rx="55" ry="60" fill="none" stroke="${glow}" stroke-width="1.5"/>
+      <circle cx="90" cy="90" r="30" fill="none" stroke="${glow}" stroke-width="1" opacity="0.6"/>
+      <text x="150" y="152" text-anchor="middle" fill="#5a6675" font-size="9" font-family="monospace">POD BAY // 탈출 포드</text>
+    </svg>`;
+  }
+  return "";
+}
+
+function minimapSVG(state){
+  const nodes = Object.entries(ROOMS).map(([id,r])=>{
+    const unlocked = state.unlockedRooms.includes(id);
+    const solvedMark = (id==='cryo'&&state.solved[1])||(id==='archive'&&state.solved[2])||(id==='podbay'&&state.solved[3]);
+    const stroke = !unlocked ? "#3a4552" : (solvedMark ? "var(--green)" : "var(--amber)");
+    return `<g class="mapnode" data-room="${id}" style="cursor:${unlocked?'pointer':'not-allowed'};">
+      <circle cx="${r.x}" cy="${r.y}" r="20" fill="#0e131b" stroke="${stroke}" stroke-width="2"/>
+      <text x="${r.x}" y="${r.y+34}" text-anchor="middle" fill="${unlocked?'#c7d1d9':'#4a5563'}" font-size="10" font-family="'IBM Plex Mono',monospace">${r.label}</text>
+    </g>`;
+  }).join('');
+  const edges = EDGES.map(([a,b])=>{
+    const A = ROOMS[a], B = ROOMS[b];
+    return `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#25303c" stroke-width="2"/>`;
+  }).join('');
+  const names = Object.keys(state.players);
+  const avatars = Object.entries(state.players).map(([name,info])=>{
+    const r = ROOMS[info.room || 'cryo'];
+    if(!r) return '';
+    const c = colorFor(name, names);
+    const offset = names.indexOf(name) % 2 === 0 ? -10 : 10;
+    return `<g>
+      <circle cx="${r.x+offset}" cy="${r.y-28}" r="6" fill="${c}" stroke="#050810" stroke-width="1.5"/>
+      <text x="${r.x+offset}" y="${r.y-34}" text-anchor="middle" fill="${c}" font-size="8" font-family="monospace">${escapeHtml(name.slice(0,4))}</text>
+    </g>`;
+  }).join('');
+  return `<svg id="minimapSvg" viewBox="0 0 440 180" style="width:100%;height:auto;">
+    ${edges}${nodes}${avatars}
   </svg>`;
 }
 
 async function renderGame(){
   const state = await loadState();
-  if(!state.players[myName]) state.players[myName] = {lastSeen: Date.now()};
-  lastRenderedTick = state.updatedAt;
+  if(!state.players[myName]) state.players[myName] = {lastSeen: Date.now(), room: currentView};
+  if(!state.players[myName].room) state.players[myName].room = currentView;
+  currentView = state.players[myName].room;
+  lastAppliedTick = state.updatedAt;
 
-  if(state.ending){
-    renderEnding(state);
-    return;
-  }
+  if(state.ending){ renderEnding(state); return; }
 
   const app = document.getElementById('app');
   const playersHtml = Object.entries(state.players).map(([name,info])=>{
@@ -198,49 +296,85 @@ async function renderGame(){
     return `<div class="log-entry"><span class="tag">${l.tag}</span>${l.text.replace(/\n/g,'<br>')}</div>`;
   }).join('');
 
-  let stageBlock = "";
-  if(state.stage === 1){
-    stageBlock = stagePrompt("각성", "캡슐 해제 코드를 입력하라.", "코드 입력", "stage1");
-  } else if(state.stage === 2){
-    stageBlock = stagePrompt("모순의 로그", "이동 기록에 모순이 있는 인물의 이름을 입력하라.", "이름 입력", "stage2");
-  } else if(state.stage === 3){
-    stageBlock = stagePrompt("탈출", "탈출 포드 잠금 해제 코드(4자리)를 입력하라.", "코드 입력", "stage3");
+  let roomPanel = "";
+  const danger = state.presence >= 60;
+  if(currentView === 'cryo'){
+    roomPanel = roomArt('cryo', danger) + (state.solved[1]
+      ? `<div class="muted" style="margin-top:10px;">캡슐 잠금이 해제되었다. 더 조사할 것이 없다.</div>`
+      : stagePrompt("각성", "캡슐 해제 코드를 입력하라.", "코드 입력", "stage1"));
+  } else if(currentView === 'corridor'){
+    roomPanel = roomArt('corridor', danger) + `<div class="muted" style="margin-top:10px;">통로에서 다른 방으로 이동할 수 있다. 상단 지도를 클릭하라.</div>`;
+  } else if(currentView === 'archive'){
+    if(!state.unlockedRooms.includes('archive')){
+      roomPanel = `<div class="muted">아직 접근 권한이 없다.</div>`;
+    } else {
+      roomPanel = roomArt('archive', danger) + (state.solved[2]
+        ? `<div class="muted" style="margin-top:10px;">기록 조사가 끝났다.</div>`
+        : stagePrompt("모순의 로그", "이동 기록에 모순이 있는 인물의 이름을 입력하라.", "이름 입력", "stage2"));
+    }
+  } else if(currentView === 'podbay'){
+    if(!state.unlockedRooms.includes('podbay')){
+      roomPanel = `<div class="muted">아직 접근 권한이 없다.</div>`;
+    } else {
+      roomPanel = roomArt('podbay', danger) + (state.solved[3]
+        ? `<div class="muted" style="margin-top:10px;">포드가 대기 중이다.</div>`
+        : stagePrompt("탈출", "탈출 포드 잠금 해제 코드(4자리)를 입력하라.", "코드 입력", "stage3"));
+    }
   }
 
   app.innerHTML = `
     <div class="top-bar">
       <div>
         <h2 class="glow">정거장 706</h2>
-        <div class="small">ROOM ${escapeHtml(roomCode)} · 단계 ${state.stage}/3</div>
+        <div class="small">ROOM ${escapeHtml(roomCode)}</div>
       </div>
       <div class="meter-wrap">
         <div class="meter">
           <div class="meter-label">산소 / VITALS</div>
-          <div class="meter-bar"><div class="meter-fill vitals-fill" style="width:${state.vitals}%;"></div></div>
+          <div class="meter-bar"><div class="meter-fill vitals-fill" id="vitalsFill" style="width:${state.vitals}%;"></div></div>
         </div>
         <div class="meter">
           <div class="meter-label">이상 신호 / PRESENCE</div>
-          <div class="meter-bar"><div class="meter-fill presence-fill" style="width:${state.presence}%;"></div></div>
+          <div class="meter-bar"><div class="meter-fill presence-fill" id="presenceFill" style="width:${state.presence}%;"></div></div>
         </div>
       </div>
     </div>
-    <div class="players" style="margin-bottom:18px;">${playersHtml}</div>
-    ${pulseSVG(state.presence)}
-    <div class="card" style="margin-top:16px;">
-      <h3 class="amber-glow" style="font-size:14px;letter-spacing:1px;margin-bottom:10px;">기록 보관소</h3>
-      ${logsHtml}
+    <div class="players" id="playerChips" style="margin-bottom:14px;">${playersHtml}</div>
+    <div class="card" id="mapCard" style="padding:14px;">${minimapSVG(state)}</div>
+    <div class="card">${roomPanel}</div>
+    <div class="card">
+      <h3 class="amber-glow" style="font-size:14px;letter-spacing:1px;margin-bottom:10px;">기록 보관소 아카이브</h3>
+      <div id="logList">${logsHtml}</div>
     </div>
-    <div class="card">${stageBlock}</div>
     <a class="link-reset" id="resetLink">방 초기화</a>
   `;
 
-  wireStage(state.stage);
+  wireRoomButtons();
+  wireStagePanel(currentView, state);
   document.getElementById('resetLink').onclick = async ()=>{
     if(confirm("정말 이 방의 진행 상황을 초기화할까요?")){
       await saveState(defaultState());
-      render();
+      render(true);
     }
   };
+}
+
+function wireRoomButtons(){
+  document.querySelectorAll('.mapnode').forEach(node=>{
+    node.addEventListener('click', async ()=>{
+      const roomId = node.getAttribute('data-room');
+      const state = await loadState();
+      if(!state.unlockedRooms.includes(roomId)) return;
+      currentView = roomId;
+      await mutateState(s=>{
+        if(!s.players[myName]) s.players[myName] = {lastSeen: Date.now()};
+        s.players[myName].room = roomId;
+        s.players[myName].lastSeen = Date.now();
+        return s;
+      });
+      render(true);
+    });
+  });
 }
 
 function stagePrompt(title, desc, placeholder, id){
@@ -255,36 +389,34 @@ function stagePrompt(title, desc, placeholder, id){
   `;
 }
 
-function wireStage(stage){
-  if(stage === 1){
-    document.getElementById('stage1Btn').onclick = ()=>submitAnswer('30', LOGS_AFTER_1, 2);
-    document.getElementById('stage1Input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitAnswer('30', LOGS_AFTER_1, 2); });
-  } else if(stage === 2){
-    document.getElementById('stage2Btn').onclick = ()=>submitAnswer('박서연', LOGS_AFTER_2, 3);
-    document.getElementById('stage2Input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitAnswer('박서연', LOGS_AFTER_2, 3); });
-  } else if(stage === 3){
-    document.getElementById('stage3Btn').onclick = ()=>submitFinal('3007');
-    document.getElementById('stage3Input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitFinal('3007'); });
+function wireStagePanel(view, state){
+  if(view === 'cryo' && !state.solved[1]){
+    const submit = ()=>submitAnswer('stage1','30', 'archive', 2, 1);
+    document.getElementById('stage1Btn').onclick = submit;
+    document.getElementById('stage1Input').addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+  } else if(view === 'archive' && state.unlockedRooms.includes('archive') && !state.solved[2]){
+    const submit = ()=>submitAnswer('stage2','박서연', 'podbay', 3, 2);
+    document.getElementById('stage2Btn').onclick = submit;
+    document.getElementById('stage2Input').addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+  } else if(view === 'podbay' && state.unlockedRooms.includes('podbay') && !state.solved[3]){
+    document.getElementById('stage3Btn').onclick = submitFinal;
+    document.getElementById('stage3Input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitFinal(); });
   }
 }
 
-const LOGS_AFTER_1 = 2;
-const LOGS_AFTER_2 = 3;
-
-async function submitAnswer(correct, nextLogId, nextStage){
-  const inputId = nextStage === 2 ? 'stage1Input' : 'stage2Input';
-  const fbId = nextStage === 2 ? 'stage1Feedback' : 'stage2Feedback';
-  const val = document.getElementById(inputId).value.trim();
-  const fb = document.getElementById(fbId);
+async function submitAnswer(inputId, correct, unlockRoom, nextLogId, solveIndex){
+  const val = document.getElementById(inputId+'Input').value.trim();
+  const fb = document.getElementById(inputId+'Feedback');
   if(val.replace(/\s/g,'') === correct){
-    fb.textContent = "일치 확인. 다음 기록이 해제됩니다.";
+    fb.textContent = "일치 확인. 다음 구역이 해제됩니다.";
     fb.className = "feedback ok";
     await mutateState(s=>{
-      s.stage = nextStage;
+      s.solved[solveIndex] = true;
+      if(!s.unlockedRooms.includes(unlockRoom)) s.unlockedRooms.push(unlockRoom);
       if(!s.revealedLogs.includes(nextLogId)) s.revealedLogs.push(nextLogId);
       return s;
     });
-    render();
+    setTimeout(()=>render(true), 400);
   } else {
     fb.textContent = "불일치. 이상 신호가 증가합니다.";
     fb.className = "feedback bad flicker";
@@ -294,18 +426,17 @@ async function submitAnswer(correct, nextLogId, nextStage){
       s.presence = Math.min(100, s.presence + 15);
       return s;
     });
-    setTimeout(render, 350);
   }
 }
 
-async function submitFinal(correct){
+async function submitFinal(){
   const val = document.getElementById('stage3Input').value.trim();
   const fb = document.getElementById('stage3Feedback');
-  if(val.replace(/\s/g,'') === correct){
+  if(val.replace(/\s/g,'') === '3007'){
     const state = await loadState();
     const ending = state.presence >= 60 ? 'BAD' : 'GOOD';
-    await mutateState(s=>{ s.ending = ending; return s; });
-    render();
+    await mutateState(s=>{ s.solved[3]=true; s.ending = ending; return s; });
+    render(true);
   } else {
     fb.textContent = "코드가 맞지 않는다. 포드가 잠긴 채로 경고음이 울린다.";
     fb.className = "feedback bad flicker";
@@ -315,7 +446,6 @@ async function submitFinal(correct){
       s.presence = Math.min(100, s.presence + 15);
       return s;
     });
-    setTimeout(render, 350);
   }
 }
 
@@ -352,17 +482,72 @@ function escapeHtml(s){
   return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function render(){ renderGame(); }
+async function render(force){
+  if(!force && isInputFocused()){
+    pendingFullRender = true;
+    return;
+  }
+  pendingFullRender = false;
+  await renderGame();
+}
+
+// Lightweight update for meters/avatars/players/logs that never touches
+// input fields, safe to run even while someone is typing.
+async function patchLive(state){
+  const vitalsFill = document.getElementById('vitalsFill');
+  const presenceFill = document.getElementById('presenceFill');
+  if(vitalsFill) vitalsFill.style.width = state.vitals + '%';
+  if(presenceFill) presenceFill.style.width = state.presence + '%';
+
+  const chips = document.getElementById('playerChips');
+  if(chips){
+    chips.innerHTML = Object.entries(state.players).map(([name,info])=>{
+      return `<div class="player-chip"><span class="dot ${isOnline(info.lastSeen)?'on':''}"></span>${escapeHtml(name)}</div>`;
+    }).join('');
+  }
+
+  const mapCard = document.getElementById('mapCard');
+  if(mapCard) mapCard.innerHTML = minimapSVG(state);
+  wireRoomButtons();
+
+  const logList = document.getElementById('logList');
+  if(logList){
+    logList.innerHTML = state.revealedLogs.sort((a,b)=>a-b).map(id=>{
+      const l = LOGS[id];
+      return `<div class="log-entry"><span class="tag">${l.tag}</span>${l.text.replace(/\n/g,'<br>')}</div>`;
+    }).join('');
+  }
+}
 
 function startGame(){
-  render();
+  render(true);
+  document.addEventListener('focusout', ()=>{
+    setTimeout(()=>{ if(pendingFullRender && !isInputFocused()) render(true); }, 50);
+  });
+
   heartbeatTimer = setInterval(async ()=>{
-    await mutateState(s=>{ s.players[myName] = {lastSeen: Date.now()}; return s; });
+    await mutateState(s=>{
+      if(!s.players[myName]) s.players[myName] = {room: currentView};
+      s.players[myName].lastSeen = Date.now();
+      s.players[myName].room = s.players[myName].room || currentView;
+      return s;
+    });
   }, 5000);
+
   pollTimer = setInterval(async ()=>{
     const s = await loadState();
-    if(s.updatedAt !== lastRenderedTick){
-      render();
+    if(s.updatedAt === lastAppliedTick) return;
+    if(s.ending){ render(true); return; }
+    // Structural changes (stage/room unlocks) need a full rebuild;
+    // otherwise just patch the live bits so typing is never interrupted.
+    const structuralKey = JSON.stringify({u:s.unlockedRooms, so:s.solved, e:s.ending});
+    if(window.__lastStructuralKey === undefined) window.__lastStructuralKey = structuralKey;
+    if(structuralKey !== window.__lastStructuralKey){
+      window.__lastStructuralKey = structuralKey;
+      render(); // respects focus guard
+    } else {
+      lastAppliedTick = s.updatedAt;
+      patchLive(s);
     }
   }, 2000);
 }
