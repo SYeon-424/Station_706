@@ -75,6 +75,40 @@
   .r-key{display:inline-block; border:1px solid var(--green-dim); border-radius:4px; padding:2px 10px; margin:0 3px; color:var(--green); font-family:'Share Tech Mono',monospace;}
   .blink{animation:blinkAnim 1.2s steps(2,start) infinite;}
   @keyframes blinkAnim{ to{ visibility:hidden; } }
+
+  /* mobile / touch controls — shown only on touch (coarse pointer) devices,
+     hidden on desktop/mouse so keyboard players see the original UI unchanged */
+  .mobile-only{ display:none; }
+  .mobile-controls{
+    display:none;
+    position:fixed; left:0; right:0; bottom:0; z-index:40;
+    padding:14px 18px calc(14px + env(safe-area-inset-bottom));
+    justify-content:space-between; align-items:center;
+    pointer-events:none; /* re-enabled on the buttons themselves below */
+  }
+  .mc-move{display:flex; gap:12px; pointer-events:auto;}
+  .mc-btn{
+    width:64px; height:64px; border-radius:50%;
+    background:rgba(14,19,27,0.85); border:1px solid var(--green-dim); color:var(--green);
+    font-family:'Share Tech Mono',monospace; font-size:20px;
+    display:flex; align-items:center; justify-content:center;
+    -webkit-tap-highlight-color:transparent; user-select:none; touch-action:none;
+    pointer-events:auto;
+  }
+  .mc-btn:active{ background:rgba(74,222,128,0.18); border-color:var(--green); }
+  .mc-jump{
+    width:78px; height:78px; font-size:13px; font-weight:600; letter-spacing:0.5px;
+    border-color:var(--amber); color:var(--amber);
+  }
+  .mc-jump:active{ background:rgba(245,165,36,0.18); border-color:var(--amber); }
+
+  @media (hover:none) and (pointer:coarse){
+    .desktop-only{ display:none !important; }
+    .mobile-only{ display:block; }
+    .mobile-controls{ display:flex; }
+    /* leave room at the bottom so the on-screen pad never covers the canvas */
+    #app{ padding-bottom:140px; }
+  }
 </style>
 </head>
 <body>
@@ -396,13 +430,16 @@ function renderBriefing(){
         <div class="small" style="margin-bottom:6px;letter-spacing:1px;">READY CHECK</div>
         <div id="readyList"></div>
         <div class="sf-hr"></div>
-        <div class="small blink" style="text-align:center;">
+        <div class="small blink desktop-only" style="text-align:center;">
           <span class="r-key">R</span> 키를 눌러 준비 완료
         </div>
+        <button id="mobileReadyBtn" class="mobile-only" style="width:100%;margin-top:10px;">준비 완료</button>
       </div>
     </div>
   `;
   renderReadyList();
+  const mobileReadyBtn = document.getElementById('mobileReadyBtn');
+  if(mobileReadyBtn) mobileReadyBtn.onclick = ()=> toggleMyReady();
 }
 
 function renderReadyList(){
@@ -471,8 +508,15 @@ function renderShell(){
       <canvas id="gameCanvas" width="${L().width}" height="${L().height}"></canvas>
       <div id="clearBanner"></div>
     </div>
-    <div class="controls-hint">← → 이동 · Space / ↑ 점프 &nbsp;|&nbsp; 협동 플랫포머</div>
-    <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
+    <div class="controls-hint desktop-only">← → 이동 · Space / ↑ 점프 &nbsp;|&nbsp; 협동 플랫포머</div>
+    <div class="mobile-controls mobile-only">
+      <div class="mc-move">
+        <button class="mc-btn" id="mcLeft" aria-label="left">◀</button>
+        <button class="mc-btn" id="mcRight" aria-label="right">▶</button>
+      </div>
+      <button class="mc-btn mc-jump" id="mcJump" aria-label="jump">JUMP</button>
+    </div>
+    <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;" class="desktop-only">
       <a class="link-reset" id="resetLink">방 전체 초기화 (스테이지 1부터)</a>
       <span class="small">|</span>
       <span class="small">디버그: 스테이지</span>
@@ -502,6 +546,7 @@ function renderShell(){
     base.ready = current.ready || {};
     await db.ref(`rooms/${roomCode}/state`).set(base);
   };
+  setupMobileControls();
 }
 
 function updatePlayerChips(){
@@ -946,6 +991,23 @@ function gameLoop(){
 
   drawLevel(remote, bridgeStates, t);
   rafId = requestAnimationFrame(gameLoop);
+}
+
+// ---------- MOBILE TOUCH CONTROLS ----------
+function setupMobileControls(){
+  const bind = (id, code)=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    const press = (e)=>{ e.preventDefault(); keys.add(code); };
+    const release = (e)=>{ e.preventDefault(); keys.delete(code); };
+    el.addEventListener('pointerdown', press);
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('pointerleave', release);
+  };
+  bind('mcLeft', 'ArrowLeft');
+  bind('mcRight', 'ArrowRight');
+  bind('mcJump', 'Space');
 }
 
 // ---------- NETWORKING (Firebase Realtime Database) ----------
