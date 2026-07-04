@@ -2,130 +2,92 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>정거장 706: 마지막 신호</title>
+<title>정거장 706: 협동 플랫포머</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#080b10;
-    --panel:#0e131b;
-    --line:#1c2530;
-    --green:#4ade80;
-    --green-dim:#2f6b47;
-    --amber:#f5a524;
-    --red:#e34848;
-    --slate:#8a98a8;
-    --white:#eef2f5;
+    --bg:#080b10; --panel:#0e131b; --line:#1c2530;
+    --green:#4ade80; --green-dim:#2f6b47; --amber:#f5a524; --red:#e34848;
+    --slate:#8a98a8; --white:#eef2f5; --p1:#4ade80; --p2:#f5a524;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--white);font-family:'IBM Plex Mono',monospace;min-height:100%;}
-  .scanlines{
-    pointer-events:none;position:fixed;inset:0;z-index:50;
-    background:repeating-linear-gradient(0deg,rgba(255,255,255,0.025) 0px,rgba(255,255,255,0.025) 1px,transparent 1px,transparent 3px);
-    mix-blend-mode:overlay;
-  }
-  .vignette{pointer-events:none;position:fixed;inset:0;z-index:49;box-shadow:inset 0 0 160px rgba(0,0,0,0.75);}
-  #app{position:relative;z-index:1;max-width:920px;margin:0 auto;padding:28px 20px 60px;}
+  #app{position:relative;max-width:860px;margin:0 auto;padding:24px 16px 50px;}
   h1,h2,h3{font-family:'Share Tech Mono',monospace;letter-spacing:0.5px;margin:0;}
   .glow{color:var(--green);text-shadow:0 0 6px rgba(74,222,128,0.5);}
-  .amber-glow{color:var(--amber);text-shadow:0 0 6px rgba(245,165,36,0.45);}
-  .red-glow{color:var(--red);text-shadow:0 0 8px rgba(227,72,72,0.55);}
+  .amber-glow{color:var(--amber);}
   .muted{color:var(--slate);}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px;margin-bottom:16px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px;margin-bottom:14px;}
   .center{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;}
   input[type=text]{
     background:#0a0f16;border:1px solid var(--line);color:var(--green);
     font-family:'Share Tech Mono',monospace;font-size:16px;padding:10px 12px;border-radius:4px;
     width:100%;outline:none;
   }
-  input[type=text]:focus{border-color:var(--green-dim);}
   button{
     background:transparent;border:1px solid var(--green-dim);color:var(--green);
     font-family:'IBM Plex Mono',monospace;font-weight:600;padding:10px 18px;border-radius:4px;
-    cursor:pointer;transition:all .15s ease;letter-spacing:0.3px;
+    cursor:pointer;transition:all .15s ease;
   }
   button:hover{background:rgba(74,222,128,0.1);border-color:var(--green);}
-  button:disabled{opacity:0.4;cursor:not-allowed;}
-  .row{display:flex;gap:10px;}
-  .top-bar{display:flex;justify-content:space-between;align-items:center;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:20px;flex-wrap:wrap;gap:12px;}
-  .meter-wrap{display:flex;gap:20px;flex-wrap:wrap;}
-  .meter{min-width:140px;}
-  .meter-label{font-size:11px;color:var(--slate);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
-  .meter-bar{height:6px;background:#1a222c;border-radius:3px;overflow:hidden;}
-  .meter-fill{height:100%;transition:width .4s ease;}
-  .vitals-fill{background:var(--green);}
-  .presence-fill{background:var(--red);}
+  .top-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
   .players{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;}
   .player-chip{border:1px solid var(--line);border-radius:12px;padding:4px 10px;display:flex;align-items:center;gap:6px;}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--slate);}
-  .dot.on{background:var(--green);box-shadow:0 0 5px var(--green);}
-  .log-entry{border-left:2px solid var(--green-dim);padding:8px 12px;margin-bottom:10px;font-size:14px;line-height:1.6;color:#c7d1d9;}
-  .log-entry .tag{color:var(--amber);font-size:11px;letter-spacing:1px;display:block;margin-bottom:4px;}
-  .feedback{margin-top:10px;font-size:14px;min-height:20px;}
-  .feedback.ok{color:var(--green);}
-  .feedback.bad{color:var(--red);}
-  .flicker{animation:flicker 0.15s linear 2;}
-  @keyframes flicker{0%,100%{opacity:1;}50%{opacity:0.3;}}
-  svg#pulse{width:100%;height:44px;display:block;}
-  .hidden{display:none !important;}
-  .ending-title{font-size:26px;margin-bottom:14px;}
+  .dot{width:8px;height:8px;border-radius:50%;}
   .small{font-size:12px;color:var(--slate);}
   a.link-reset{color:var(--slate);text-decoration:underline;cursor:pointer;font-size:12px;}
+  canvas{width:100%;display:block;background:#060911;border-radius:6px;border:1px solid var(--line);}
+  .controls-hint{margin-top:10px;font-size:12px;color:var(--slate);text-align:center;}
+  .clear-banner{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:rgba(8,11,16,0.92);border:1px solid var(--green);color:var(--green);
+    padding:20px 34px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:22px;
+    text-shadow:0 0 8px rgba(74,222,128,0.6);letter-spacing:1px;text-align:center;
+  }
+  .canvas-wrap{position:relative;}
 </style>
 </head>
 <body>
-<div class="scanlines"></div>
-<div class="vignette"></div>
 <div id="app"></div>
 
 <script>
-const ROOM_PREFIX = "escape706:";
+const ROOM_PREFIX = "coopplat706:";
 let myName = "";
 let roomCode = "";
-let pollTimer = null;
-let heartbeatTimer = null;
-let lastAppliedTick = null;
-let pendingFullRender = false;
-let currentView = "cryo"; // which room panel I'm looking at locally
+let canvas, ctx;
+let rafId = null;
+let netWriteTimer = null;
+let netReadTimer = null;
+let lastRemoteSnapshots = {}; // name -> [{x,y,t}, {x,y,t}] for interpolation
+let keys = new Set();
 
-const PLAYER_COLORS = ["#4ade80", "#f5a524", "#7dd3fc", "#f472b6"];
-function colorFor(name, names){
-  const idx = names.indexOf(name);
-  return PLAYER_COLORS[idx % PLAYER_COLORS.length];
-}
+const GRAVITY = 0.65;
+const JUMP_V = -11.5;
+const MOVE_SPEED = 3.4;
+const PW = 22, PH = 30; // player box size
+const LEVEL = { w: 800, h: 400 };
 
-const ROOMS = {
-  cryo:    { label: "캡슐실",     x: 60,  y: 90 },
-  corridor:{ label: "통로",       x: 220, y: 90 },
-  archive: { label: "기록보관소", x: 380, y: 40 },
-  podbay:  { label: "탈출포드실", x: 380, y: 140 }
-};
-const EDGES = [["cryo","corridor"],["corridor","archive"],["corridor","podbay"]];
-
-const LOGS = {
-  0: {tag:"SYSTEM LOG // 00:00", text:"관측선 마고 3호, 표류 정거장 706 접근 완료. 정거장 내 생명반응 없음. 냉동캡슐 두 기, 원인 불명의 활성화 신호 감지됨. 산소 재순환 장치 가동 — 잔량 위험 수준."},
-  1: {tag:"SYSTEM LOG // 캡슐 해제", text:"캡슐 표면 성에 사이로 긁힌 자국이 보인다. 누군가 손끝으로 남긴 숫자열: 2 · 6 · 12 · 20 · ?  — 해제 코드는 이 수열의 다음 숫자다."},
-  2: {tag:"승무원 교신 기록 // 복구됨", text:"세 승무원의 마지막 위치 보고가 복구되었다.\n\n[김도윤] 03:14 기계실 → 03:20 격납고\n[박서연] 03:15 의무실 → 03:16 함교\n[이한결] 03:00 침실 → 04:00 침실\n\n정거장 설계도에 따르면 의무실과 함교 사이는 최단 도보로도 8분이 걸린다. 셋 중 이동 기록에 모순이 있는 사람의 이름을 입력하라."},
-  3: {tag:"보안 기록 // 배지 대조", text:"모순이 발견된 인물의 사물함에서 배지가 발견됐다. 배지 번호: 07. 탈출 포드 잠금 해제 코드는 [캡슐 해제 코드] 뒤에 [배지 번호]를 이어붙인 4자리 숫자다."}
-};
+// Static platforms (never change)
+const STATIC_PLATFORMS = [
+  {x:0,y:340,w:260,h:60},      // left ground
+  {x:460,y:340,w:340,h:60},    // right ground
+  {x:80,y:320,w:60,h:10, tag:'switch'},   // switch pad (visual only, sits on ground)
+  {x:500,y:320,w:44,h:10, tag:'plateA'},
+  {x:620,y:320,w:44,h:10, tag:'plateB'},
+];
+const BRIDGE = {x:260,y:340,w:200,h:20};
+const GATE_X = 760; // goal gate x position (right edge)
+const PIT_Y = 385;
+const START_POS = {x:40,y:290};
 
 function defaultState(){
   return {
-    stage: 1,
-    vitals: 100,
-    presence: 0,
-    wrongAttempts: 0,
-    revealedLogs: [0,1],
-    solved: {1:false,2:false,3:false},
-    unlockedRooms: ["cryo","corridor"],
-    ending: null,
     players: {},
+    switchOn: false,
+    gateOpen: false,
+    cleared: false,
     updatedAt: Date.now()
   };
-}
-
-function isInputFocused(){
-  const a = document.activeElement;
-  return a && a.tagName === 'INPUT';
 }
 
 async function loadState(){
@@ -133,423 +95,328 @@ async function loadState(){
     const res = await window.storage.get(ROOM_PREFIX + roomCode, true);
     if(!res) return defaultState();
     return JSON.parse(res.value);
-  }catch(e){
-    return defaultState();
-  }
+  }catch(e){ return defaultState(); }
 }
-
 async function saveState(state){
   state.updatedAt = Date.now();
-  try{
-    await window.storage.set(ROOM_PREFIX + roomCode, JSON.stringify(state), true);
-  }catch(e){
-    console.error("저장 실패", e);
-  }
+  try{ await window.storage.set(ROOM_PREFIX + roomCode, JSON.stringify(state), true); }
+  catch(e){ /* ignore transient failures */ }
   return state;
 }
-
 async function mutateState(fn){
-  const state = await loadState();
-  const next = fn(state) || state;
+  const s = await loadState();
+  const next = fn(s) || s;
   return await saveState(next);
 }
+function isOnline(ts){ return ts && (Date.now()-ts) < 6000; }
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-function isOnline(ts){
-  return ts && (Date.now() - ts) < 9000;
-}
-
+// ---------- LOGIN ----------
 function renderLogin(){
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="center">
-      <h1 class="glow" style="font-size:30px;">정거장 706</h1>
-      <div class="muted" style="margin-bottom:26px;letter-spacing:1px;">마지막 신호 — 협동 방탈출</div>
+      <h1 class="glow" style="font-size:28px;">정거장 706: 협동 플랫포머</h1>
+      <div class="muted" style="margin-bottom:24px;">둘이 같이 다리를 놓고, 같이 발판을 밟아 문을 열어라.</div>
       <div class="card" style="width:100%;max-width:380px;text-align:left;">
         <div class="small" style="margin-bottom:6px;">닉네임</div>
         <input type="text" id="nameInput" placeholder="예: 도윤" style="margin-bottom:14px;">
-        <div class="small" style="margin-bottom:6px;">방 코드 (친구와 동일하게 입력)</div>
+        <div class="small" style="margin-bottom:6px;">방 코드 (친구와 동일하게)</div>
         <input type="text" id="roomInput" placeholder="예: NEBULA7">
-        <button id="enterBtn" style="width:100%;margin-top:16px;">캡슐 접속</button>
+        <button id="enterBtn" style="width:100%;margin-top:16px;">입장</button>
       </div>
-      <div class="small" style="max-width:380px;">같은 방 코드로 친구와 각자 접속하면 화면이 실시간으로 동기화됩니다.</div>
     </div>
   `;
   document.getElementById('enterBtn').onclick = async ()=>{
     const n = document.getElementById('nameInput').value.trim();
     const r = document.getElementById('roomInput').value.trim().toUpperCase();
-    if(!n || !r){ return; }
-    myName = n;
-    roomCode = r;
-    await mutateState(s=>{ s.players[myName] = {lastSeen: Date.now()}; return s; });
+    if(!n || !r) return;
+    myName = n; roomCode = r;
     startGame();
   };
 }
 
-function roomArt(id, danger){
-  const glow = danger ? "var(--red)" : "var(--green)";
-  if(id === 'cryo'){
-    return `<svg viewBox="0 0 300 160" width="100%" height="150">
-      <rect x="0" y="0" width="300" height="160" fill="#0a0f16"/>
-      <g stroke="${glow}" stroke-width="1.5" fill="none" opacity="0.9">
-        <rect x="50" y="20" width="55" height="120" rx="22"/>
-        <rect x="150" y="20" width="55" height="120" rx="22"/>
-        <line x1="77" y1="30" x2="77" y2="130" stroke-dasharray="3,4" opacity="0.5"/>
-        <line x1="177" y1="30" x2="177" y2="130" stroke-dasharray="3,4" opacity="0.5"/>
-      </g>
-      <circle cx="77" cy="70" r="4" fill="${glow}"><animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite"/></circle>
-      <circle cx="177" cy="70" r="4" fill="${glow}"><animate attributeName="opacity" values="1;0.2;1" dur="2.4s" repeatCount="indefinite"/></circle>
-      <text x="150" y="152" text-anchor="middle" fill="#5a6675" font-size="9" font-family="monospace">CRYO BAY // 냉동캡슐 두 기</text>
-    </svg>`;
-  }
-  if(id === 'corridor'){
-    return `<svg viewBox="0 0 300 160" width="100%" height="150">
-      <rect x="0" y="0" width="300" height="160" fill="#0a0f16"/>
-      <g stroke="${glow}" stroke-width="1" opacity="0.6">
-        <line x1="0" y1="40" x2="300" y2="40"/>
-        <line x1="0" y1="120" x2="300" y2="120"/>
-      </g>
-      <g fill="${glow}" opacity="0.85">
-        <rect x="20" y="76" width="18" height="6"><animate attributeName="opacity" values="0.9;0.2;0.9" dur="1.6s" repeatCount="indefinite"/></rect>
-        <rect x="90" y="76" width="18" height="6"><animate attributeName="opacity" values="0.2;0.9;0.2" dur="1.6s" repeatCount="indefinite"/></rect>
-        <rect x="160" y="76" width="18" height="6"><animate attributeName="opacity" values="0.9;0.2;0.9" dur="2s" repeatCount="indefinite"/></rect>
-        <rect x="230" y="76" width="18" height="6"><animate attributeName="opacity" values="0.2;0.9;0.2" dur="2s" repeatCount="indefinite"/></rect>
-      </g>
-      <text x="150" y="152" text-anchor="middle" fill="#5a6675" font-size="9" font-family="monospace">CORRIDOR // 정거장 통로</text>
-    </svg>`;
-  }
-  if(id === 'archive'){
-    return `<svg viewBox="0 0 300 160" width="100%" height="150">
-      <rect x="0" y="0" width="300" height="160" fill="#0a0f16"/>
-      <rect x="90" y="20" width="120" height="80" fill="none" stroke="${glow}" stroke-width="1.5"/>
-      <g stroke="${glow}" stroke-width="1" opacity="0.7">
-        <line x1="100" y1="34" x2="180" y2="34"/>
-        <line x1="100" y1="46" x2="200" y2="46"/>
-        <line x1="100" y1="58" x2="160" y2="58"/>
-        <line x1="100" y1="70" x2="190" y2="70"/>
-        <line x1="100" y1="82" x2="150" y2="82"/>
-      </g>
-      <rect x="130" y="110" width="40" height="40" fill="none" stroke="${glow}" stroke-width="1.5" opacity="0.8"/>
-      <text x="150" y="152" text-anchor="middle" fill="#5a6675" font-size="9" font-family="monospace">ARCHIVE // 기록 단말기</text>
-    </svg>`;
-  }
-  if(id === 'podbay'){
-    return `<svg viewBox="0 0 300 160" width="100%" height="150">
-      <rect x="0" y="0" width="300" height="160" fill="#050810"/>
-      <circle cx="230" cy="40" r="1.2" fill="#8a98a8"/>
-      <circle cx="250" cy="70" r="1" fill="#8a98a8"/>
-      <circle cx="200" cy="90" r="1.4" fill="#8a98a8"/>
-      <circle cx="270" cy="30" r="1" fill="#8a98a8"/>
-      <ellipse cx="90" cy="90" rx="55" ry="60" fill="none" stroke="${glow}" stroke-width="1.5"/>
-      <circle cx="90" cy="90" r="30" fill="none" stroke="${glow}" stroke-width="1" opacity="0.6"/>
-      <text x="150" y="152" text-anchor="middle" fill="#5a6675" font-size="9" font-family="monospace">POD BAY // 탈출 포드</text>
-    </svg>`;
-  }
-  return "";
-}
+// ---------- GAME SHELL ----------
+let myPlayer = { x: START_POS.x, y: START_POS.y, vx:0, vy:0, onGround:false, color: '#4ade80' };
+let sharedSnapshot = null; // last full state fetched
 
-function minimapSVG(state){
-  const nodes = Object.entries(ROOMS).map(([id,r])=>{
-    const unlocked = state.unlockedRooms.includes(id);
-    const solvedMark = (id==='cryo'&&state.solved[1])||(id==='archive'&&state.solved[2])||(id==='podbay'&&state.solved[3]);
-    const stroke = !unlocked ? "#3a4552" : (solvedMark ? "var(--green)" : "var(--amber)");
-    return `<g class="mapnode" data-room="${id}" style="cursor:${unlocked?'pointer':'not-allowed'};">
-      <circle cx="${r.x}" cy="${r.y}" r="20" fill="#0e131b" stroke="${stroke}" stroke-width="2"/>
-      <text x="${r.x}" y="${r.y+34}" text-anchor="middle" fill="${unlocked?'#c7d1d9':'#4a5563'}" font-size="10" font-family="'IBM Plex Mono',monospace">${r.label}</text>
-    </g>`;
-  }).join('');
-  const edges = EDGES.map(([a,b])=>{
-    const A = ROOMS[a], B = ROOMS[b];
-    return `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#25303c" stroke-width="2"/>`;
-  }).join('');
-  const names = Object.keys(state.players);
-  const avatars = Object.entries(state.players).map(([name,info])=>{
-    const r = ROOMS[info.room || 'cryo'];
-    if(!r) return '';
-    const c = colorFor(name, names);
-    const offset = names.indexOf(name) % 2 === 0 ? -10 : 10;
-    return `<g>
-      <circle cx="${r.x+offset}" cy="${r.y-28}" r="6" fill="${c}" stroke="#050810" stroke-width="1.5"/>
-      <text x="${r.x+offset}" y="${r.y-34}" text-anchor="middle" fill="${c}" font-size="8" font-family="monospace">${escapeHtml(name.slice(0,4))}</text>
-    </g>`;
-  }).join('');
-  return `<svg id="minimapSvg" viewBox="0 0 440 180" style="width:100%;height:auto;">
-    ${edges}${nodes}${avatars}
-  </svg>`;
-}
-
-async function renderGame(){
-  const state = await loadState();
-  if(!state.players[myName]) state.players[myName] = {lastSeen: Date.now(), room: currentView};
-  if(!state.players[myName].room) state.players[myName].room = currentView;
-  currentView = state.players[myName].room;
-  lastAppliedTick = state.updatedAt;
-
-  if(state.ending){ renderEnding(state); return; }
-
+function renderShell(){
   const app = document.getElementById('app');
-  const playersHtml = Object.entries(state.players).map(([name,info])=>{
-    return `<div class="player-chip"><span class="dot ${isOnline(info.lastSeen)?'on':''}"></span>${escapeHtml(name)}</div>`;
-  }).join('');
-
-  const logsHtml = state.revealedLogs.sort((a,b)=>a-b).map(id=>{
-    const l = LOGS[id];
-    return `<div class="log-entry"><span class="tag">${l.tag}</span>${l.text.replace(/\n/g,'<br>')}</div>`;
-  }).join('');
-
-  let roomPanel = "";
-  const danger = state.presence >= 60;
-  if(currentView === 'cryo'){
-    roomPanel = roomArt('cryo', danger) + (state.solved[1]
-      ? `<div class="muted" style="margin-top:10px;">캡슐 잠금이 해제되었다. 더 조사할 것이 없다.</div>`
-      : stagePrompt("각성", "캡슐 해제 코드를 입력하라.", "코드 입력", "stage1"));
-  } else if(currentView === 'corridor'){
-    roomPanel = roomArt('corridor', danger) + `<div class="muted" style="margin-top:10px;">통로에서 다른 방으로 이동할 수 있다. 상단 지도를 클릭하라.</div>`;
-  } else if(currentView === 'archive'){
-    if(!state.unlockedRooms.includes('archive')){
-      roomPanel = `<div class="muted">아직 접근 권한이 없다.</div>`;
-    } else {
-      roomPanel = roomArt('archive', danger) + (state.solved[2]
-        ? `<div class="muted" style="margin-top:10px;">기록 조사가 끝났다.</div>`
-        : stagePrompt("모순의 로그", "이동 기록에 모순이 있는 인물의 이름을 입력하라.", "이름 입력", "stage2"));
-    }
-  } else if(currentView === 'podbay'){
-    if(!state.unlockedRooms.includes('podbay')){
-      roomPanel = `<div class="muted">아직 접근 권한이 없다.</div>`;
-    } else {
-      roomPanel = roomArt('podbay', danger) + (state.solved[3]
-        ? `<div class="muted" style="margin-top:10px;">포드가 대기 중이다.</div>`
-        : stagePrompt("탈출", "탈출 포드 잠금 해제 코드(4자리)를 입력하라.", "코드 입력", "stage3"));
-    }
-  }
-
   app.innerHTML = `
     <div class="top-bar">
-      <div>
-        <h2 class="glow">정거장 706</h2>
-        <div class="small">ROOM ${escapeHtml(roomCode)}</div>
-      </div>
-      <div class="meter-wrap">
-        <div class="meter">
-          <div class="meter-label">산소 / VITALS</div>
-          <div class="meter-bar"><div class="meter-fill vitals-fill" id="vitalsFill" style="width:${state.vitals}%;"></div></div>
-        </div>
-        <div class="meter">
-          <div class="meter-label">이상 신호 / PRESENCE</div>
-          <div class="meter-bar"><div class="meter-fill presence-fill" id="presenceFill" style="width:${state.presence}%;"></div></div>
-        </div>
-      </div>
+      <div><h2 class="glow" style="font-size:18px;">정거장 706</h2><div class="small">ROOM ${escapeHtml(roomCode)}</div></div>
+      <div class="players" id="playerChips"></div>
     </div>
-    <div class="players" id="playerChips" style="margin-bottom:14px;">${playersHtml}</div>
-    <div class="card" id="mapCard" style="padding:14px;">${minimapSVG(state)}</div>
-    <div class="card">${roomPanel}</div>
-    <div class="card">
-      <h3 class="amber-glow" style="font-size:14px;letter-spacing:1px;margin-bottom:10px;">기록 보관소 아카이브</h3>
-      <div id="logList">${logsHtml}</div>
+    <div class="canvas-wrap">
+      <canvas id="gameCanvas" width="${LEVEL.w}" height="${LEVEL.h}"></canvas>
+      <div id="clearBanner"></div>
     </div>
-    <a class="link-reset" id="resetLink">방 초기화</a>
+    <div class="controls-hint">← → 이동 · Space / ↑ 점프 &nbsp;|&nbsp; 왼쪽 발판(스위치)을 밟아 다리를 올리고, 오른쪽 두 발판을 둘이 동시에 밟아 문을 열어라</div>
+    <a class="link-reset" id="resetLink" style="display:block;text-align:center;margin-top:10px;">방 초기화</a>
   `;
-
-  wireRoomButtons();
-  wireStagePanel(currentView, state);
+  canvas = document.getElementById('gameCanvas');
+  ctx = canvas.getContext('2d');
   document.getElementById('resetLink').onclick = async ()=>{
-    if(confirm("정말 이 방의 진행 상황을 초기화할까요?")){
-      await saveState(defaultState());
-      render(true);
-    }
+    if(confirm("이 방을 초기화할까요?")){ await saveState(defaultState()); }
   };
 }
 
-function wireRoomButtons(){
-  document.querySelectorAll('.mapnode').forEach(node=>{
-    node.addEventListener('click', async ()=>{
-      const roomId = node.getAttribute('data-room');
-      const state = await loadState();
-      if(!state.unlockedRooms.includes(roomId)) return;
-      currentView = roomId;
-      await mutateState(s=>{
-        if(!s.players[myName]) s.players[myName] = {lastSeen: Date.now()};
-        s.players[myName].room = roomId;
-        s.players[myName].lastSeen = Date.now();
-        return s;
-      });
-      render(true);
-    });
-  });
-}
-
-function stagePrompt(title, desc, placeholder, id){
-  return `
-    <h3 class="glow" style="margin-bottom:6px;">${title}</h3>
-    <div class="muted" style="margin-bottom:14px;font-size:14px;">${desc}</div>
-    <div class="row">
-      <input type="text" id="${id}Input" placeholder="${placeholder}">
-      <button id="${id}Btn">확인</button>
-    </div>
-    <div class="feedback" id="${id}Feedback"></div>
-  `;
-}
-
-function wireStagePanel(view, state){
-  if(view === 'cryo' && !state.solved[1]){
-    const submit = ()=>submitAnswer('stage1','30', 'archive', 2, 1);
-    document.getElementById('stage1Btn').onclick = submit;
-    document.getElementById('stage1Input').addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
-  } else if(view === 'archive' && state.unlockedRooms.includes('archive') && !state.solved[2]){
-    const submit = ()=>submitAnswer('stage2','박서연', 'podbay', 3, 2);
-    document.getElementById('stage2Btn').onclick = submit;
-    document.getElementById('stage2Input').addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
-  } else if(view === 'podbay' && state.unlockedRooms.includes('podbay') && !state.solved[3]){
-    document.getElementById('stage3Btn').onclick = submitFinal;
-    document.getElementById('stage3Input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitFinal(); });
-  }
-}
-
-async function submitAnswer(inputId, correct, unlockRoom, nextLogId, solveIndex){
-  const val = document.getElementById(inputId+'Input').value.trim();
-  const fb = document.getElementById(inputId+'Feedback');
-  if(val.replace(/\s/g,'') === correct){
-    fb.textContent = "일치 확인. 다음 구역이 해제됩니다.";
-    fb.className = "feedback ok";
-    await mutateState(s=>{
-      s.solved[solveIndex] = true;
-      if(!s.unlockedRooms.includes(unlockRoom)) s.unlockedRooms.push(unlockRoom);
-      if(!s.revealedLogs.includes(nextLogId)) s.revealedLogs.push(nextLogId);
-      return s;
-    });
-    setTimeout(()=>render(true), 400);
-  } else {
-    fb.textContent = "불일치. 이상 신호가 증가합니다.";
-    fb.className = "feedback bad flicker";
-    await mutateState(s=>{
-      s.wrongAttempts += 1;
-      s.vitals = Math.max(0, s.vitals - 6);
-      s.presence = Math.min(100, s.presence + 15);
-      return s;
-    });
-  }
-}
-
-async function submitFinal(){
-  const val = document.getElementById('stage3Input').value.trim();
-  const fb = document.getElementById('stage3Feedback');
-  if(val.replace(/\s/g,'') === '3007'){
-    const state = await loadState();
-    const ending = state.presence >= 60 ? 'BAD' : 'GOOD';
-    await mutateState(s=>{ s.solved[3]=true; s.ending = ending; return s; });
-    render(true);
-  } else {
-    fb.textContent = "코드가 맞지 않는다. 포드가 잠긴 채로 경고음이 울린다.";
-    fb.className = "feedback bad flicker";
-    await mutateState(s=>{
-      s.wrongAttempts += 1;
-      s.vitals = Math.max(0, s.vitals - 6);
-      s.presence = Math.min(100, s.presence + 15);
-      return s;
-    });
-  }
-}
-
-function renderEnding(state){
-  const app = document.getElementById('app');
-  if(state.ending === 'GOOD'){
-    app.innerHTML = `
-      <div class="center">
-        <h1 class="ending-title glow">탈출 포드, 발사</h1>
-        <div class="card" style="max-width:560px;text-align:left;line-height:1.8;">
-          포드가 정거장 706에서 떨어져 나간다. 뒤를 돌아보니 격납고 조명이 하나둘 꺼지고 있었다.
-          박서연의 배지는 여전히 손에 쥐어져 있었지만, 그녀의 위치 기록이 왜 모순됐는지는 끝내 알 수 없었다.
-          구조 신호가 잡히기 시작한다. 산소는 아슬아슬하게 남아있다.<br><br>
-          <span class="muted">— 생존. 하지만 정거장에 무엇이 있었는지는 기록되지 않았다.</span>
-        </div>
-      </div>
-    `;
-  } else {
-    app.innerHTML = `
-      <div class="center">
-        <h1 class="ending-title red-glow flicker">신호, 끊김</h1>
-        <div class="card" style="max-width:560px;text-align:left;line-height:1.8;">
-          포드 문이 열리는 순간, 함께 있던 동료의 얼굴에 옅은 미소가 스친다 — 지금까지 한 번도 짓지 않았던 표정.
-          "우리 둘뿐이었잖아, 그렇지?" 목소리는 익숙했지만, 억양의 리듬이 미묘하게 어긋나 있었다.
-          이상 신호 수치가 계속 남아있던 이유를 이제야 알 것 같다.<br><br>
-          <span class="muted red-glow">— 마고 3호와의 교신이 끊겼습니다.</span>
-        </div>
-      </div>
-    `;
-  }
-}
-
-function escapeHtml(s){
-  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-async function render(force){
-  if(!force && isInputFocused()){
-    pendingFullRender = true;
-    return;
-  }
-  pendingFullRender = false;
-  await renderGame();
-}
-
-// Lightweight update for meters/avatars/players/logs that never touches
-// input fields, safe to run even while someone is typing.
-async function patchLive(state){
-  const vitalsFill = document.getElementById('vitalsFill');
-  const presenceFill = document.getElementById('presenceFill');
-  if(vitalsFill) vitalsFill.style.width = state.vitals + '%';
-  if(presenceFill) presenceFill.style.width = state.presence + '%';
-
+function updatePlayerChips(state){
   const chips = document.getElementById('playerChips');
-  if(chips){
-    chips.innerHTML = Object.entries(state.players).map(([name,info])=>{
-      return `<div class="player-chip"><span class="dot ${isOnline(info.lastSeen)?'on':''}"></span>${escapeHtml(name)}</div>`;
-    }).join('');
-  }
-
-  const mapCard = document.getElementById('mapCard');
-  if(mapCard) mapCard.innerHTML = minimapSVG(state);
-  wireRoomButtons();
-
-  const logList = document.getElementById('logList');
-  if(logList){
-    logList.innerHTML = state.revealedLogs.sort((a,b)=>a-b).map(id=>{
-      const l = LOGS[id];
-      return `<div class="log-entry"><span class="tag">${l.tag}</span>${l.text.replace(/\n/g,'<br>')}</div>`;
-    }).join('');
-  }
+  if(!chips) return;
+  const names = Object.keys(state.players);
+  chips.innerHTML = names.map(name=>{
+    const info = state.players[name];
+    const c = name === myName ? '#4ade80' : '#f5a524';
+    return `<div class="player-chip"><span class="dot" style="background:${c};box-shadow:0 0 5px ${c};opacity:${isOnline(info.lastSeen)?1:0.3}"></span>${escapeHtml(name)}</div>`;
+  }).join('');
 }
 
-function startGame(){
-  render(true);
-  document.addEventListener('focusout', ()=>{
-    setTimeout(()=>{ if(pendingFullRender && !isInputFocused()) render(true); }, 50);
+// ---------- PHYSICS ----------
+function rectsOverlap(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+function getActivePlatforms(state){
+  const plats = STATIC_PLATFORMS.filter(p=>!p.tag || p.tag==='ground');
+  // ground platforms without tag are solid; switch/plate pads are thin solid too (standable)
+  const solids = [
+    {x:0,y:340,w:260,h:60},
+    {x:460,y:340,w:340,h:60},
+    {x:80,y:320,w:60,h:10},
+    {x:500,y:320,w:44,h:10},
+    {x:620,y:320,w:44,h:10},
+  ];
+  if(state.switchOn) solids.push(BRIDGE);
+  return solids;
+}
+
+function stepPhysics(state, dt){
+  const p = myPlayer;
+  // horizontal input
+  let moveX = 0;
+  if(keys.has('ArrowLeft')||keys.has('KeyA')) moveX -= 1;
+  if(keys.has('ArrowRight')||keys.has('KeyD')) moveX += 1;
+  p.vx = moveX * MOVE_SPEED;
+
+  if((keys.has('Space')||keys.has('ArrowUp')||keys.has('KeyW')) && p.onGround){
+    p.vy = JUMP_V;
+    p.onGround = false;
+  }
+
+  p.vy += GRAVITY;
+  if(p.vy > 14) p.vy = 14;
+
+  const solids = getActivePlatforms(state);
+  const box = ()=>({x:p.x-PW/2, y:p.y-PH, w:PW, h:PH});
+
+  // move X
+  p.x += p.vx;
+  let b = box();
+  for(const s of solids){
+    if(rectsOverlap(b,s)){
+      if(p.vx > 0) p.x = s.x - PW/2;
+      else if(p.vx < 0) p.x = s.x + s.w + PW/2;
+      b = box();
+    }
+  }
+  // move Y
+  p.y += p.vy;
+  b = box();
+  p.onGround = false;
+  for(const s of solids){
+    if(rectsOverlap(b,s)){
+      if(p.vy > 0){ p.y = s.y; p.onGround = true; p.vy = 0; }
+      else if(p.vy < 0){ p.y = s.y + s.h + PH; p.vy = 0; }
+      b = box();
+    }
+  }
+
+  // fell into pit
+  if(p.y > PIT_Y + 40){
+    p.x = START_POS.x; p.y = START_POS.y; p.vx = 0; p.vy = 0;
+  }
+
+  // clamp to level bounds
+  if(p.x < PW/2) p.x = PW/2;
+  if(p.x > LEVEL.w - PW/2) p.x = LEVEL.w - PW/2;
+}
+
+function onSwitchPad(){
+  const p = myPlayer;
+  return p.x > 80 && p.x < 140 && p.y >= 315 && p.y <= 325;
+}
+function onPlateA(){ const p = myPlayer; return p.x > 500 && p.x < 544 && p.y >= 315 && p.y <= 325; }
+function onPlateB(){ const p = myPlayer; return p.x > 620 && p.x < 664 && p.y >= 315 && p.y <= 325; }
+
+// ---------- RENDER ----------
+function drawLevel(state, remotePositions){
+  ctx.clearRect(0,0,LEVEL.w,LEVEL.h);
+  // background grid
+  ctx.strokeStyle = 'rgba(74,222,128,0.05)';
+  for(let x=0;x<LEVEL.w;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,LEVEL.h); ctx.stroke(); }
+
+  // pit glow
+  ctx.fillStyle = '#0a0208';
+  ctx.fillRect(260,340,200,60);
+
+  // static ground
+  ctx.fillStyle = '#141b24';
+  ctx.strokeStyle = '#2f6b47';
+  ctx.lineWidth = 1.5;
+  [{x:0,y:340,w:260,h:60},{x:460,y:340,w:340,h:60}].forEach(r=>{
+    ctx.fillRect(r.x,r.y,r.w,r.h); ctx.strokeRect(r.x,r.y,r.w,r.h);
   });
 
-  heartbeatTimer = setInterval(async ()=>{
+  // bridge (if active)
+  if(state.switchOn){
+    ctx.fillStyle = 'rgba(74,222,128,0.18)';
+    ctx.strokeStyle = '#4ade80';
+    ctx.fillRect(BRIDGE.x,BRIDGE.y,BRIDGE.w,BRIDGE.h);
+    ctx.strokeRect(BRIDGE.x,BRIDGE.y,BRIDGE.w,BRIDGE.h);
+  } else {
+    ctx.strokeStyle = 'rgba(245,165,36,0.4)';
+    ctx.setLineDash([4,4]);
+    ctx.strokeRect(BRIDGE.x,BRIDGE.y,BRIDGE.w,BRIDGE.h);
+    ctx.setLineDash([]);
+  }
+
+  // switch pad
+  ctx.fillStyle = state.switchOn ? '#4ade80' : '#f5a524';
+  ctx.fillRect(80,320,60,10);
+  ctx.fillStyle = '#c7d1d9';
+  ctx.font = '9px monospace';
+  ctx.fillText('SWITCH', 84, 316);
+
+  // plates
+  ctx.fillStyle = state.gateOpen ? '#4ade80' : '#f5a524';
+  ctx.fillRect(500,320,44,10);
+  ctx.fillRect(620,320,44,10);
+  ctx.fillStyle = '#c7d1d9';
+  ctx.fillText('PLATE A', 496, 316);
+  ctx.fillText('PLATE B', 616, 316);
+
+  // gate
+  ctx.fillStyle = state.gateOpen ? 'rgba(74,222,128,0.15)' : 'rgba(227,72,72,0.25)';
+  ctx.fillRect(GATE_X, 260, 12, 80);
+  ctx.strokeStyle = state.gateOpen ? '#4ade80' : '#e34848';
+  ctx.strokeRect(GATE_X, 260, 12, 80);
+
+  // remote players (interpolated)
+  Object.entries(remotePositions).forEach(([name,pos])=>{
+    drawPlayer(pos.x, pos.y, '#f5a524', name);
+  });
+
+  // my player
+  drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName);
+}
+
+function drawPlayer(x,y,color,label){
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(x-PW/2, y-PH, PW, PH);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#050810';
+  ctx.fillRect(x-6, y-PH+8, 4,4);
+  ctx.fillRect(x+2, y-PH+8, 4,4);
+  ctx.fillStyle = '#c7d1d9';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x, y-PH-6);
+  ctx.textAlign = 'left';
+}
+
+function getInterpolatedRemotePositions(){
+  const now = Date.now();
+  const out = {};
+  Object.entries(lastRemoteSnapshots).forEach(([name, snaps])=>{
+    if(snaps.length === 0) return;
+    if(snaps.length === 1){ out[name] = snaps[0]; return; }
+    const [a,b] = snaps;
+    const span = b.t - a.t || 1;
+    let t = (now - b.t) / span + 1; // extrapolate slightly forward
+    t = Math.max(0, Math.min(1.4, t));
+    out[name] = { x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t };
+  });
+  return out;
+}
+
+// ---------- GAME LOOP ----------
+function gameLoop(){
+  const state = sharedSnapshot || defaultState();
+  stepPhysics(state);
+
+  // local switch/plate logic (optimistic, then confirmed via shared state)
+  if(onSwitchPad() && !state.switchOn){
+    state.switchOn = true;
+    mutateState(s=>{ s.switchOn = true; return s; });
+  }
+
+  const remote = getInterpolatedRemotePositions();
+  const remoteNames = Object.keys(remote);
+  let iAmOnA = onPlateA(), iAmOnB = onPlateB();
+  let otherOnA = false, otherOnB = false;
+  remoteNames.forEach(name=>{
+    const pos = remote[name];
+    if(pos.x>500 && pos.x<544 && pos.y>=310 && pos.y<=330) otherOnA = true;
+    if(pos.x>620 && pos.x<664 && pos.y>=310 && pos.y<=330) otherOnB = true;
+  });
+  const bothPlatesCovered = (iAmOnA || otherOnA) && (iAmOnB || otherOnB) && (
+    (iAmOnA && otherOnB) || (iAmOnB && otherOnA)
+  );
+  if(bothPlatesCovered && !state.gateOpen){
+    state.gateOpen = true;
+    mutateState(s=>{ s.gateOpen = true; return s; });
+  }
+
+  const cleared = state.gateOpen && myPlayer.x > GATE_X - 4;
+  const banner = document.getElementById('clearBanner');
+  if(banner) banner.innerHTML = cleared ? `<div class="clear-banner">CLEAR!<br><span style="font-size:12px;color:#8a98a8;">함께 탈출했다</span></div>` : '';
+
+  drawLevel(state, remote);
+  rafId = requestAnimationFrame(gameLoop);
+}
+
+// ---------- NETWORKING ----------
+function startNetworking(){
+  netWriteTimer = setInterval(async ()=>{
     await mutateState(s=>{
-      if(!s.players[myName]) s.players[myName] = {room: currentView};
-      s.players[myName].lastSeen = Date.now();
-      s.players[myName].room = s.players[myName].room || currentView;
+      s.players[myName] = { x: Math.round(myPlayer.x), y: Math.round(myPlayer.y), lastSeen: Date.now() };
       return s;
     });
-  }, 5000);
+  }, 220);
 
-  pollTimer = setInterval(async ()=>{
+  netReadTimer = setInterval(async ()=>{
     const s = await loadState();
-    if(s.updatedAt === lastAppliedTick) return;
-    if(s.ending){ render(true); return; }
-    // Structural changes (stage/room unlocks) need a full rebuild;
-    // otherwise just patch the live bits so typing is never interrupted.
-    const structuralKey = JSON.stringify({u:s.unlockedRooms, so:s.solved, e:s.ending});
-    if(window.__lastStructuralKey === undefined) window.__lastStructuralKey = structuralKey;
-    if(structuralKey !== window.__lastStructuralKey){
-      window.__lastStructuralKey = structuralKey;
-      render(); // respects focus guard
-    } else {
-      lastAppliedTick = s.updatedAt;
-      patchLive(s);
-    }
-  }, 2000);
+    sharedSnapshot = s;
+    updatePlayerChips(s);
+    Object.entries(s.players).forEach(([name, info])=>{
+      if(name === myName) return;
+      const t = Date.now();
+      if(!lastRemoteSnapshots[name]) lastRemoteSnapshots[name] = [];
+      const arr = lastRemoteSnapshots[name];
+      arr.push({x:info.x, y:info.y, t});
+      if(arr.length > 2) arr.shift();
+    });
+  }, 220);
+}
+
+function setupKeys(){
+  window.addEventListener('keydown', e=>{
+    if(['ArrowLeft','ArrowRight','ArrowUp','Space','KeyA','KeyD','KeyW'].includes(e.code)) e.preventDefault();
+    keys.add(e.code);
+  });
+  window.addEventListener('keyup', e=>{ keys.delete(e.code); });
+}
+
+async function startGame(){
+  renderShell();
+  setupKeys();
+  sharedSnapshot = await loadState();
+  updatePlayerChips(sharedSnapshot);
+  startNetworking();
+  gameLoop();
 }
 
 renderLogin();
