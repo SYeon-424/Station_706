@@ -84,31 +84,37 @@ const LEVELS = [
     groundLeft:  {x:0,   y:340, w:260, h:60},
     groundRight: {x:460, y:340, w:340, h:60},
     bridge:      {x:260, y:340, w:200, h:20},
-    switchPad:   {x:80,  y:320, w:60,  h:10},
+    switchPads: [ {x:80, y:320, w:60, h:10} ],
     switchMode: 'toggle',
     plateA: {x:500, y:320, w:44, h:10},
     plateB: {x:620, y:320, w:44, h:10},
     gateX: 760
   },
-  { // STAGE 2 - 스위치를 계속 밟고 있어야 다리 유지 (혼자선 못 건넘)
+  { // STAGE 2 - 스위치를 계속 밟고 있어야 다리 유지, 양쪽에 스위치가 있어 릴레이로 건넘
     groundLeft:  {x:0,   y:340, w:220, h:60},
     groundRight: {x:480, y:340, w:320, h:60},
     bridge:      {x:220, y:340, w:260, h:20},
-    switchPad:   {x:70,  y:320, w:56,  h:10},
+    switchPads: [
+      {x:70,  y:320, w:56, h:10}, // 왼쪽 스위치
+      {x:500, y:320, w:56, h:10}  // 오른쪽 스위치 (건너간 사람이 밟아서 다리 유지)
+    ],
     switchMode: 'hold',
-    plateA: {x:520, y:320, w:38, h:10},
-    plateB: {x:660, y:320, w:38, h:10},
-    gateX: 770
+    plateA: {x:620, y:320, w:34, h:10},
+    plateB: {x:720, y:320, w:34, h:10},
+    gateX: 780
   },
-  { // STAGE 3 - 더 넓은 간격 + 더 좁은 발판
+  { // STAGE 3 - 더 넓은 간격 + 더 좁은 발판, 양쪽 스위치
     groundLeft:  {x:0,   y:340, w:200, h:60},
     groundRight: {x:500, y:340, w:300, h:60},
     bridge:      {x:200, y:340, w:300, h:20},
-    switchPad:   {x:60,  y:320, w:48,  h:10},
+    switchPads: [
+      {x:60,  y:320, w:48, h:10}, // 왼쪽 스위치
+      {x:520, y:320, w:48, h:10}  // 오른쪽 스위치
+    ],
     switchMode: 'hold',
-    plateA: {x:540, y:320, w:32, h:10},
-    plateB: {x:700, y:320, w:32, h:10},
-    gateX: 780
+    plateA: {x:640, y:320, w:30, h:10},
+    plateB: {x:740, y:320, w:30, h:10},
+    gateX: 785
   }
 ];
 let currentLevel = 0;
@@ -154,7 +160,8 @@ function renderShell(){
   app.innerHTML = `
     <div class="top-bar">
       <div><h2 class="glow" style="font-size:18px;">정거장 706</h2><div class="small">ROOM ${escapeHtml(roomCode)}</div></div>
-      <div style="display:flex;align-items:center;gap:10px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span id="stageIndicator" style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--amber);text-shadow:0 0 6px rgba(245,165,36,0.4);letter-spacing:1px;">STAGE 1/3</span>
         <span class="status-pill pending" id="statusPill">연결 중...</span>
         <div class="players" id="playerChips"></div>
       </div>
@@ -184,12 +191,17 @@ function updatePlayerChips(){
   }).join('');
 }
 
+function updateStageIndicator(){
+  const el = document.getElementById('stageIndicator');
+  if(el) el.textContent = `STAGE ${currentLevel+1}/${LEVELS.length}`;
+}
+
 // ---------- PHYSICS ----------
 function rectsOverlap(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
 
 function getActivePlatforms(bridgeActive){
   const lvl = L();
-  const solids = [ lvl.groundLeft, lvl.groundRight, lvl.switchPad, lvl.plateA, lvl.plateB ];
+  const solids = [ lvl.groundLeft, lvl.groundRight, ...lvl.switchPads, lvl.plateA, lvl.plateB ];
   if(bridgeActive) solids.push(lvl.bridge);
   if(!roomRowState.gateOpen) solids.push({x: lvl.gateX, y:0, w:12, h:340}); // closed gate blocks passage
   return solids;
@@ -267,10 +279,13 @@ function drawLevel(remotePositions, bridgeActive){
     ctx.strokeRect(lvl.bridge.x,lvl.bridge.y,lvl.bridge.w,lvl.bridge.h); ctx.setLineDash([]);
   }
 
-  ctx.fillStyle = bridgeActive ? '#4ade80' : '#f5a524';
-  ctx.fillRect(lvl.switchPad.x,lvl.switchPad.y,lvl.switchPad.w,lvl.switchPad.h);
-  ctx.fillStyle = '#c7d1d9'; ctx.font = '9px monospace';
-  ctx.fillText(lvl.switchMode === 'hold' ? 'HOLD' : 'SWITCH', lvl.switchPad.x, lvl.switchPad.y-4);
+  lvl.switchPads.forEach(pad=>{
+    const onIt = bridgeActive; // simple shared visual state; still fine per-pad since both control same bridge
+    ctx.fillStyle = onIt ? '#4ade80' : '#f5a524';
+    ctx.fillRect(pad.x,pad.y,pad.w,pad.h);
+    ctx.fillStyle = '#c7d1d9'; ctx.font = '9px monospace';
+    ctx.fillText(lvl.switchMode === 'hold' ? 'HOLD' : 'SWITCH', pad.x, pad.y-4);
+  });
 
   ctx.fillStyle = roomRowState.gateOpen ? '#4ade80' : '#f5a524';
   ctx.fillRect(lvl.plateA.x,lvl.plateA.y,lvl.plateA.w,lvl.plateA.h);
@@ -283,9 +298,6 @@ function drawLevel(remotePositions, bridgeActive){
   ctx.fillRect(lvl.gateX, 260, 12, 80);
   ctx.strokeStyle = roomRowState.gateOpen ? '#4ade80' : '#e34848';
   ctx.strokeRect(lvl.gateX, 260, 12, 80);
-
-  ctx.fillStyle = '#5a6675'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(`STAGE ${currentLevel+1} / ${LEVELS.length}`, 10, 16);
 
   Object.entries(remotePositions).forEach(([name,pos])=>drawPlayer(pos.x, pos.y, '#f5a524', name));
   drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName);
@@ -335,14 +347,14 @@ function gameLoop(){
   if(lvl.switchMode === 'toggle'){
     bridgeActive = roomRowState.switchOn;
   } else {
-    const iOnSwitch = isOnPad(myPlayer, lvl.switchPad);
-    const otherOnSwitch = Object.values(preview).some(pos => isOnPad(pos, lvl.switchPad));
+    const iOnSwitch = lvl.switchPads.some(pad => isOnPad(myPlayer, pad));
+    const otherOnSwitch = Object.values(preview).some(pos => lvl.switchPads.some(pad => isOnPad(pos, pad)));
     bridgeActive = iOnSwitch || otherOnSwitch;
   }
 
   stepPhysics(bridgeActive);
 
-  if(lvl.switchMode === 'toggle' && isOnPad(myPlayer, lvl.switchPad) && !roomRowState.switchOn){
+  if(lvl.switchMode === 'toggle' && lvl.switchPads.some(pad => isOnPad(myPlayer, pad)) && !roomRowState.switchOn){
     roomRowState.switchOn = true;
     db.ref(`rooms/${roomCode}/state/switchOn`).set(true);
   }
@@ -421,6 +433,7 @@ function setupRealtime(){
         currentLevel = Math.max(0, Math.min(LEVELS.length-1, lvl));
         advancing = false;
         myPlayer.x = START_POS.x; myPlayer.y = START_POS.y; myPlayer.vx = 0; myPlayer.vy = 0;
+        updateStageIndicator();
         const banner = document.getElementById('clearBanner');
         if(banner) banner.innerHTML = '';
       }
@@ -450,6 +463,7 @@ function setupKeys(){
 
 function startGame(){
   renderShell();
+  updateStageIndicator();
   setupKeys();
   setupRealtime();
   gameLoop();
