@@ -180,16 +180,16 @@ const LEVELS = [
   { // STAGE 7 - 협동 발사대 위주: 둘이 동시에 밟아야 저 위까지 튀어오른다
     width: 900, height: 550, start:{x:40,y:450},
     grounds: [
-      {x:0,   y:480, w:200, h:60},
-      {x:350, y:200, w:300, h:20},
-      {x:700, y:380, w:200, h:60}
+      {x:0,   y:480, w:300, h:60},
+      {x:120, y:280, w:430, h:20},
+      {x:600, y:400, w:300, h:60}
     ],
     bridges: [], movingPlatforms: [], crumbles: [], hazards: [],
     launchPads: [
-      { id:'lp1', padA:{x:60,y:460,w:34,h:10}, padB:{x:120,y:460,w:34,h:10}, boost:-22 }
+      { id:'lp1', padA:{x:80,y:460,w:34,h:10}, padB:{x:140,y:460,w:34,h:10}, boost:-18 }
     ],
     gates: [
-      { id:'g_final', plateA:{x:730,y:360,w:34,h:10}, plateB:{x:800,y:360,w:34,h:10}, gateX:870 }
+      { id:'g_final', plateA:{x:630,y:380,w:34,h:10}, plateB:{x:700,y:380,w:34,h:10}, gateX:850 }
     ]
   },
   { // STAGE 8 - 붕괴 발판 + 수직 엘리베이터: 무너지는 계단 다음, 오르내리는 발판을 잡아탄다
