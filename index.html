@@ -2,7 +2,17 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
 <title>정거장 706</title>
+<meta name="theme-color" content="#080b10">
+<meta name="description" content="정거장 706 — 협동 탈출 플랫포머">
+<!-- PWA: 설치형 웹앱으로 실행하기 위한 매니페스트/아이콘 -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="정거장 706">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -86,18 +96,21 @@
     justify-content:space-between; align-items:center;
     pointer-events:none; /* re-enabled on the buttons themselves below */
   }
-  .mc-move{display:flex; gap:12px; pointer-events:auto;}
+  .mc-move{display:flex; gap:clamp(8px,3vw,16px); pointer-events:auto;}
   .mc-btn{
-    width:64px; height:64px; border-radius:50%;
+    /* scales with viewport width so it feels right on a small phone or a big tablet,
+       clamped between a comfortable min and max tap-target size */
+    width:clamp(52px, 15vw, 76px); height:clamp(52px, 15vw, 76px); border-radius:50%;
     background:rgba(14,19,27,0.85); border:1px solid var(--green-dim); color:var(--green);
-    font-family:'Share Tech Mono',monospace; font-size:20px;
+    font-family:'Share Tech Mono',monospace; font-size:clamp(16px, 5vw, 22px);
     display:flex; align-items:center; justify-content:center;
     -webkit-tap-highlight-color:transparent; user-select:none; touch-action:none;
     pointer-events:auto;
   }
   .mc-btn:active{ background:rgba(74,222,128,0.18); border-color:var(--green); }
   .mc-jump{
-    width:78px; height:78px; font-size:13px; font-weight:600; letter-spacing:0.5px;
+    width:clamp(64px, 19vw, 92px); height:clamp(64px, 19vw, 92px);
+    font-size:clamp(11px, 3.2vw, 14px); font-weight:600; letter-spacing:0.5px;
     border-color:var(--amber); color:var(--amber);
   }
   .mc-jump:active{ background:rgba(245,165,36,0.18); border-color:var(--amber); }
@@ -106,8 +119,20 @@
     .desktop-only{ display:none !important; }
     .mobile-only{ display:block; }
     .mobile-controls{ display:flex; }
-    /* leave room at the bottom so the on-screen pad never covers the canvas */
-    #app{ padding-bottom:140px; }
+    /* leave room at the bottom so the on-screen pad never covers the canvas;
+       scales with the (also-scaling) button size above plus safe-area inset */
+    #app{ padding-bottom:calc(clamp(64px, 19vw, 92px) + 28px + env(safe-area-inset-bottom)); }
+  }
+
+  /* shrink header text/spacing on narrow phones so nothing wraps awkwardly */
+  @media (max-width:480px){
+    #app{ padding-left:10px; padding-right:10px; }
+    .top-bar{ gap:8px; }
+    .station-title h2{ font-size:15px; }
+    .oxy-bar-outer{ width:clamp(70px,22vw,120px); }
+    #stageIndicator{ font-size:14px !important; }
+    .player-chip{ font-size:11px; padding:3px 8px; }
+    .status-pill{ font-size:10px; }
   }
 </style>
 </head>
@@ -1187,6 +1212,13 @@ function initGame(){
 }
 
 renderLogin();
+
+// PWA: 서비스워커 등록 (설치 가능하게 하기 위한 최소 조건)
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* 오프라인 캐시는 필수는 아님 */ });
+  });
+}
 </script>
 </body>
 </html>
