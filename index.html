@@ -159,6 +159,8 @@ let posSendTimer = null;
 let keys = new Set();
 let lastRemoteSnapshots = {};
 let onlineNames = new Set();
+let realtimeRefs = {}; // holds live Firebase refs so leaveRoom() can .off() them cleanly
+let myPlayerRef = null;
 let roomRowState = { level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}, ready:{}, gameStarted:false, startTime:null, dead:false, deathReason:null, won:false };
 
 // phase: 'briefing' | 'playing' | 'dead' | 'won'
@@ -429,9 +431,12 @@ function renderLogin(){
     const r = document.getElementById('roomInput').value.trim().toUpperCase();
     if(!n || !r) return;
     myName = n; roomCode = r;
-    firebase.initializeApp(FIREBASE_CONFIG);
+    if(!firebase.apps.length){ firebase.initializeApp(FIREBASE_CONFIG); }
     db = firebase.database();
-    // always start a fresh session at stage 1; use the debug jump control to skip ahead
+    // always start a fresh session at stage 1; use the debug jump control to skip ahead.
+    // also wipe any leftover player entries from a previous session under this same
+    // room code, so a reused/freed code always starts completely clean.
+    await db.ref(`rooms/${roomCode}/players`).remove();
     await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
     initGame();
   };
@@ -459,10 +464,15 @@ function renderBriefing(){
           <span class="r-key">R</span> 키를 눌러 준비 완료
         </div>
         <button id="mobileReadyBtn" class="mobile-only" style="width:100%;margin-top:10px;">준비 완료</button>
+        <div style="text-align:center;margin-top:14px;">
+          <a class="link-reset" id="leaveLinkBriefing">방 나가기 (코드 반납)</a>
+        </div>
       </div>
     </div>
   `;
   renderReadyList();
+  const leaveLink = document.getElementById('leaveLinkBriefing');
+  if(leaveLink) leaveLink.onclick = ()=>{ if(confirm("방을 나갈까요? 아무도 남지 않으면 이 코드는 완전히 초기화됩니다.")) leaveRoom(); };
   const mobileReadyBtn = document.getElementById('mobileReadyBtn');
   if(mobileReadyBtn) mobileReadyBtn.onclick = ()=> toggleMyReady();
 }
@@ -527,6 +537,7 @@ function renderShell(){
         <span id="stageIndicator" style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--amber);text-shadow:0 0 6px rgba(245,165,36,0.4);letter-spacing:1px;">STAGE 1/10</span>
         <span class="status-pill pending" id="statusPill">연결 중...</span>
         <div class="players" id="playerChips"></div>
+        <a class="link-reset" id="leaveLinkShell" style="white-space:nowrap;">나가기</a>
       </div>
     </div>
     <div class="canvas-wrap">
@@ -554,6 +565,9 @@ function renderShell(){
   document.getElementById('resetLink').onclick = async ()=>{
     if(!confirm("이 방을 스테이지 1부터 초기화할까요?")) return;
     await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
+  };
+  document.getElementById('leaveLinkShell').onclick = ()=>{
+    if(confirm("방을 나갈까요? 아무도 남지 않으면 이 코드는 완전히 초기화됩니다.")) leaveRoom();
   };
   document.getElementById('jumpStageBtn').onclick = async ()=>{
     const n = parseInt(document.getElementById('jumpStageInput').value, 10);
@@ -1054,11 +1068,13 @@ function renderDeathOverlay(){
         <span class="muted">[End 1] 임무 실패 — 사망</span>
       </div>
       <button id="retryBtn" style="width:100%;">다시 도전하기</button>
+      <button id="leaveBtnDead" style="width:100%;margin-top:8px;border-color:var(--slate);color:var(--slate);">나가기 (코드 반납)</button>
     </div>
   `;
   document.getElementById('retryBtn').onclick = async ()=>{
     await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
   };
+  document.getElementById('leaveBtnDead').onclick = ()=> leaveRoom();
 }
 
 function renderWinOverlay(){
@@ -1074,11 +1090,13 @@ function renderWinOverlay(){
         <span class="glow">[End 2] 임무 성공 - 탈출</span>
       </div>
       <button id="retryBtn" style="width:100%;">새 임무 시작</button>
+      <button id="leaveBtnWon" style="width:100%;margin-top:8px;border-color:var(--slate);color:var(--slate);">나가기 (코드 반납)</button>
     </div>
   `;
   document.getElementById('retryBtn').onclick = async ()=>{
     await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
   };
+  document.getElementById('leaveBtnWon').onclick = ()=> leaveRoom();
 }
 
 function applyLevelReset(lvl){
@@ -1100,10 +1118,11 @@ function applyLevelReset(lvl){
 }
 
 function setupRealtime(){
-  const myRef = db.ref(`rooms/${roomCode}/players/${myName}`);
-  myRef.onDisconnect().remove();
+  myPlayerRef = db.ref(`rooms/${roomCode}/players/${myName}`);
+  myPlayerRef.onDisconnect().remove();
 
-  db.ref(`rooms/${roomCode}/players`).on('value', (snap)=>{
+  realtimeRefs.players = db.ref(`rooms/${roomCode}/players`);
+  realtimeRefs.players.on('value', (snap)=>{
     const val = snap.val() || {};
     onlineNames = new Set(Object.keys(val));
     updatePlayerChips();
@@ -1119,7 +1138,8 @@ function setupRealtime(){
     if(gamePhase === 'briefing') maybeLaunchGame();
   });
 
-  db.ref(`rooms/${roomCode}/state`).on('value', (snap)=>{
+  realtimeRefs.state = db.ref(`rooms/${roomCode}/state`);
+  realtimeRefs.state.on('value', (snap)=>{
     const val = snap.val();
     if(!val) return;
     roomRowState.bridgesOn = val.bridgesOn || {};
@@ -1174,7 +1194,8 @@ function setupRealtime(){
 
   // shared launch-pad fire events (see gameLoop) — pushed the instant either client
   // detects the simultaneous press, received by both at roughly the same time
-  db.ref(`rooms/${roomCode}/state/launchFire`).on('value', (snap)=>{
+  realtimeRefs.launchFire = db.ref(`rooms/${roomCode}/state/launchFire`);
+  realtimeRefs.launchFire.on('value', (snap)=>{
     const val = snap.val() || {};
     Object.entries(val).forEach(([padId, ts])=>{
       if(lastSeenLaunchTs[padId] === ts) return;
@@ -1183,7 +1204,8 @@ function setupRealtime(){
     });
   });
 
-  db.ref('.info/connected').on('value', (snap)=>{
+  realtimeRefs.connected = db.ref('.info/connected');
+  realtimeRefs.connected.on('value', (snap)=>{
     const pill = document.getElementById('statusPill');
     if(!pill) return;
     if(snap.val() === true){ pill.textContent = '연결됨'; pill.className = 'status-pill connected'; }
@@ -1191,8 +1213,45 @@ function setupRealtime(){
   });
 
   posSendTimer = setInterval(()=>{
-    myRef.set({ x: Math.round(myPlayer.x), y: Math.round(myPlayer.y), ts: Date.now() });
+    myPlayerRef.set({ x: Math.round(myPlayer.x), y: Math.round(myPlayer.y), ts: Date.now() });
   }, 40);
+}
+
+// detach every live listener/timer for the current room without touching the database itself
+function teardownRealtime(){
+  Object.values(realtimeRefs).forEach(ref=>{ try{ ref.off(); }catch(e){} });
+  realtimeRefs = {};
+  if(posSendTimer){ clearInterval(posSendTimer); posSendTimer = null; }
+  if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+}
+
+// leave the current room: remove your own presence, and if you were the last
+// player online, wipe the whole room (state + players) so the room code is
+// completely free to reuse later. Then return to the login screen.
+async function leaveRoom(){
+  if(!db || !roomCode){ renderLogin(); return; }
+  const leavingCode = roomCode;
+  try{
+    if(myPlayerRef){ await myPlayerRef.onDisconnect().cancel(); await myPlayerRef.remove(); }
+  }catch(e){ console.error(e); }
+  try{
+    const snap = await db.ref(`rooms/${leavingCode}/players`).once('value');
+    const remaining = snap.val() || {};
+    if(Object.keys(remaining).length === 0){
+      await db.ref(`rooms/${leavingCode}`).remove(); // fully free the code for reuse
+    }
+  }catch(e){ console.error(e); }
+
+  teardownRealtime();
+  gamePhase = 'briefing';
+  oxygenTriggerSent = false;
+  onlineNames = new Set();
+  lastRemoteSnapshots = {};
+  roomRowState = defaultRoomState();
+  myName = ""; roomCode = "";
+  myPlayerRef = null;
+  removeOverlay();
+  renderLogin();
 }
 
 function setupKeys(){
