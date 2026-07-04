@@ -71,57 +71,104 @@ let posSendTimer = null;
 let keys = new Set();
 let lastRemoteSnapshots = {};
 let onlineNames = new Set();
-let roomRowState = { switchOn:false, gateOpen:false };
+let roomRowState = { level:0, bridgesOn:{}, gatesOpen:{} };
 
 const GRAVITY = 0.65, JUMP_V = -11.5, MOVE_SPEED = 3.4;
 const PW = 22, PH = 30;
-const LEVEL = { w: 800, h: 400 };
+const CANVAS_H = 400;
 const PIT_Y = 385;
 const START_POS = {x:40,y:290};
 
+// Each level: grounds[], bridges[] (toggle=press once / hold=must stand while crossing,
+// can have 2 switchPads for a relay), movingPlatforms[] (time-based, no network needed),
+// gates[] (dual-plate doors; the LAST gate in the array is the finish line).
 const LEVELS = [
-  { // STAGE 1 - 튜토리얼: 스위치 한 번만 누르면 다리 고정
-    groundLeft:  {x:0,   y:340, w:260, h:60},
-    groundRight: {x:460, y:340, w:340, h:60},
-    bridge:      {x:260, y:340, w:200, h:20},
-    switchPads: [ {x:80, y:320, w:60, h:10} ],
-    switchMode: 'toggle',
-    plateA: {x:500, y:320, w:44, h:10},
-    plateB: {x:620, y:320, w:44, h:10},
-    gateX: 760
-  },
-  { // STAGE 2 - 스위치를 계속 밟고 있어야 다리 유지, 양쪽에 스위치가 있어 릴레이로 건넘
-    groundLeft:  {x:0,   y:340, w:220, h:60},
-    groundRight: {x:480, y:340, w:320, h:60},
-    bridge:      {x:220, y:340, w:260, h:20},
-    switchPads: [
-      {x:70,  y:320, w:56, h:10}, // 왼쪽 스위치
-      {x:500, y:320, w:56, h:10}  // 오른쪽 스위치 (건너간 사람이 밟아서 다리 유지)
+  { // STAGE 1 - 튜토리얼
+    width: 800,
+    grounds: [ {x:0,y:340,w:260,h:60}, {x:460,y:340,w:340,h:60} ],
+    bridges: [
+      { id:'b1', rect:{x:260,y:340,w:200,h:20}, mode:'toggle',
+        switchPads:[ {x:80,y:320,w:60,h:10} ] }
     ],
-    switchMode: 'hold',
-    plateA: {x:620, y:320, w:34, h:10},
-    plateB: {x:720, y:320, w:34, h:10},
-    gateX: 780
+    movingPlatforms: [],
+    gates: [
+      { id:'g1', plateA:{x:500,y:320,w:44,h:10}, plateB:{x:620,y:320,w:44,h:10}, gateX:760 }
+    ]
   },
-  { // STAGE 3 - 더 넓은 간격 + 더 좁은 발판, 양쪽 스위치
-    groundLeft:  {x:0,   y:340, w:200, h:60},
-    groundRight: {x:500, y:340, w:300, h:60},
-    bridge:      {x:200, y:340, w:300, h:20},
-    switchPads: [
-      {x:60,  y:320, w:48, h:10}, // 왼쪽 스위치
-      {x:520, y:320, w:48, h:10}  // 오른쪽 스위치
+  { // STAGE 2 - 스위치를 계속 밟고 있어야 다리 유지, 양쪽 릴레이
+    width: 800,
+    grounds: [ {x:0,y:340,w:220,h:60}, {x:480,y:340,w:320,h:60} ],
+    bridges: [
+      { id:'b1', rect:{x:220,y:340,w:260,h:20}, mode:'hold',
+        switchPads:[ {x:70,y:320,w:56,h:10}, {x:500,y:320,w:56,h:10} ] }
     ],
-    switchMode: 'hold',
-    plateA: {x:640, y:320, w:30, h:10},
-    plateB: {x:740, y:320, w:30, h:10},
-    gateX: 785
+    movingPlatforms: [],
+    gates: [
+      { id:'g1', plateA:{x:620,y:320,w:34,h:10}, plateB:{x:720,y:320,w:34,h:10}, gateX:780 }
+    ]
+  },
+  { // STAGE 3 - 릴레이 브릿지 + 타이밍 이동 발판
+    width: 900,
+    grounds: [ {x:0,y:340,w:150,h:60}, {x:330,y:340,w:140,h:60}, {x:650,y:340,w:250,h:60} ],
+    bridges: [
+      { id:'b1', rect:{x:150,y:340,w:180,h:20}, mode:'hold',
+        switchPads:[ {x:80,y:320,w:56,h:10}, {x:340,y:320,w:56,h:10} ] }
+    ],
+    movingPlatforms: [
+      { x0:480, x1:600, y:340, w:50, h:15, period:2400 }
+    ],
+    gates: [
+      { id:'g1', plateA:{x:700,y:320,w:34,h:10}, plateB:{x:800,y:320,w:34,h:10}, gateX:860 }
+    ]
+  },
+  { // STAGE 4 - 릴레이 브릿지 2개 + 이동 발판 + 중간 체크포인트 게이트
+    width: 1050,
+    grounds: [ {x:0,y:340,w:130,h:60}, {x:310,y:340,w:110,h:60}, {x:600,y:340,w:100,h:60}, {x:880,y:340,w:170,h:60} ],
+    bridges: [
+      { id:'b1', rect:{x:130,y:340,w:180,h:20}, mode:'hold',
+        switchPads:[ {x:60,y:320,w:56,h:10}, {x:320,y:320,w:56,h:10} ] },
+      { id:'b2', rect:{x:700,y:340,w:180,h:20}, mode:'hold',
+        switchPads:[ {x:610,y:320,w:56,h:10}, {x:890,y:320,w:56,h:10} ] }
+    ],
+    movingPlatforms: [
+      { x0:430, x1:560, y:340, w:50, h:15, period:2200 }
+    ],
+    gates: [
+      { id:'g_mid',   plateA:{x:335,y:320,w:30,h:10}, plateB:{x:380,y:320,w:30,h:10}, gateX:420 },
+      { id:'g_final', plateA:{x:920,y:320,w:34,h:10}, plateB:{x:970,y:320,w:34,h:10}, gateX:1020 }
+    ]
+  },
+  { // STAGE 5 - 릴레이 브릿지 2개 + 이동 발판 2개 + 중간 게이트 + 최종 게이트
+    width: 1300,
+    grounds: [ {x:0,y:340,w:120,h:60}, {x:300,y:340,w:100,h:60}, {x:600,y:340,w:100,h:60}, {x:900,y:340,w:170,h:60}, {x:1150,y:340,w:150,h:60} ],
+    bridges: [
+      { id:'b1', rect:{x:120,y:340,w:180,h:20}, mode:'hold',
+        switchPads:[ {x:50,y:320,w:50,h:10}, {x:310,y:320,w:50,h:10} ] },
+      { id:'b2', rect:{x:700,y:340,w:200,h:20}, mode:'hold',
+        switchPads:[ {x:610,y:320,w:50,h:10}, {x:910,y:320,w:50,h:10} ] }
+    ],
+    movingPlatforms: [
+      { x0:420, x1:560, y:340, w:50, h:15, period:2200 },
+      { x0:1070, x1:1140, y:340, w:40, h:15, period:1800 }
+    ],
+    gates: [
+      { id:'g_mid',   plateA:{x:930,y:320,w:34,h:10}, plateB:{x:990,y:320,w:34,h:10}, gateX:1045 },
+      { id:'g_final', plateA:{x:1180,y:320,w:34,h:10}, plateB:{x:1230,y:320,w:34,h:10}, gateX:1280 }
+    ]
   }
 ];
 let currentLevel = 0;
 let advancing = false;
 function L(){ return LEVELS[currentLevel]; }
 
+function getMovingPlatformRect(mp, t){
+  const frac = (Math.sin((t / mp.period) * Math.PI * 2) + 1) / 2;
+  const x = mp.x0 + (mp.x1 - mp.x0) * frac;
+  return { x, y: mp.y, w: mp.w, h: mp.h };
+}
+
 let myPlayer = { x: START_POS.x, y: START_POS.y, vx:0, vy:0, onGround:false };
+
 
 function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -132,7 +179,7 @@ function renderLogin(){
   app.innerHTML = `
     <div class="center">
       <h1 class="glow" style="font-size:28px;">정거장 706: 협동 플랫포머</h1>
-      <div class="muted" style="margin-bottom:24px;">3단계 스테이지 — 뒤로 갈수록 협동 난이도가 올라간다.</div>
+      <div class="muted" style="margin-bottom:24px;">5단계 스테이지 — 뒤로 갈수록 기믹이 늘어나고 협동 난이도가 올라간다.</div>
       ${!configured ? `<div class="card" style="max-width:380px;border-color:var(--amber);color:var(--amber);">FIREBASE_CONFIG가 아직 설정되지 않았어요. 코드 상단 값을 콘솔에서 복사한 값으로 바꿔주세요.</div>` : ''}
       <div class="card" style="width:100%;max-width:380px;text-align:left;">
         <div class="small" style="margin-bottom:6px;">닉네임</div>
@@ -161,23 +208,23 @@ function renderShell(){
     <div class="top-bar">
       <div><h2 class="glow" style="font-size:18px;">정거장 706</h2><div class="small">ROOM ${escapeHtml(roomCode)}</div></div>
       <div style="display:flex;align-items:center;gap:12px;">
-        <span id="stageIndicator" style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--amber);text-shadow:0 0 6px rgba(245,165,36,0.4);letter-spacing:1px;">STAGE 1/3</span>
+        <span id="stageIndicator" style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--amber);text-shadow:0 0 6px rgba(245,165,36,0.4);letter-spacing:1px;">STAGE 1/5</span>
         <span class="status-pill pending" id="statusPill">연결 중...</span>
         <div class="players" id="playerChips"></div>
       </div>
     </div>
     <div class="canvas-wrap">
-      <canvas id="gameCanvas" width="${LEVEL.w}" height="${LEVEL.h}"></canvas>
+      <canvas id="gameCanvas" width="${L().width}" height="${CANVAS_H}"></canvas>
       <div id="clearBanner"></div>
     </div>
-    <div class="controls-hint">← → 이동 · Space / ↑ 점프 &nbsp;|&nbsp; 스위치를 밟아 다리를 켜고(스테이지에 따라 계속 밟고 있어야 함), 두 발판을 둘이 동시에 밟아 문을 열어라</div>
+    <div class="controls-hint">← → 이동 · Space / ↑ 점프 &nbsp;|&nbsp; 스위치를 밟아 다리를 켜고(HOLD는 계속 밟고 있어야 함), 발판 두 개를 동시에 밟아 문을 열어라</div>
     <a class="link-reset" id="resetLink" style="display:block;text-align:center;margin-top:10px;">방 전체 초기화 (스테이지 1부터)</a>
   `;
   canvas = document.getElementById('gameCanvas');
   ctx = canvas.getContext('2d');
   document.getElementById('resetLink').onclick = async ()=>{
     if(!confirm("이 방을 스테이지 1부터 초기화할까요?")) return;
-    await db.ref(`rooms/${roomCode}/state`).set({level:0, switchOn:false, gateOpen:false});
+    await db.ref(`rooms/${roomCode}/state`).set({level:0, bridgesOn:{}, gatesOpen:{}});
   };
 }
 
@@ -199,16 +246,36 @@ function updateStageIndicator(){
 // ---------- PHYSICS ----------
 function rectsOverlap(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
 
-function getActivePlatforms(bridgeActive){
+function isBridgeActive(bridge, myPos, remotePositions){
+  if(bridge.mode === 'toggle'){
+    return !!(roomRowState.bridgesOn && roomRowState.bridgesOn[bridge.id]);
+  }
+  const onIt = (pos)=> bridge.switchPads.some(pad => isOnPad(pos, pad));
+  if(onIt(myPos)) return true;
+  return Object.values(remotePositions).some(onIt);
+}
+
+function getActivePlatforms(bridgeStates, t){
   const lvl = L();
-  const solids = [ lvl.groundLeft, lvl.groundRight, ...lvl.switchPads, lvl.plateA, lvl.plateB ];
-  if(bridgeActive) solids.push(lvl.bridge);
-  if(!roomRowState.gateOpen) solids.push({x: lvl.gateX, y:0, w:12, h:340}); // closed gate blocks passage
+  const solids = [ ...lvl.grounds ];
+  lvl.bridges.forEach(b=>{
+    solids.push(...b.switchPads);
+    if(bridgeStates[b.id]) solids.push(b.rect);
+  });
+  lvl.movingPlatforms.forEach(mp=>{
+    solids.push(getMovingPlatformRect(mp, t));
+  });
+  lvl.gates.forEach(g=>{
+    solids.push(g.plateA, g.plateB);
+    const open = roomRowState.gatesOpen && roomRowState.gatesOpen[g.id];
+    if(!open) solids.push({x:g.gateX, y:0, w:12, h:340});
+  });
   return solids;
 }
 
-function stepPhysics(bridgeActive){
+function stepPhysics(bridgeStates, t){
   const p = myPlayer;
+  const lvl = L();
   let moveX = 0;
   if(keys.has('ArrowLeft')||keys.has('KeyA')) moveX -= 1;
   if(keys.has('ArrowRight')||keys.has('KeyD')) moveX += 1;
@@ -217,7 +284,7 @@ function stepPhysics(bridgeActive){
   p.vy += GRAVITY;
   if(p.vy > 14) p.vy = 14;
 
-  const solids = getActivePlatforms(bridgeActive);
+  const solids = getActivePlatforms(bridgeStates, t);
   const box = ()=>({x:p.x-PW/2, y:p.y-PH, w:PW, h:PH});
 
   p.x += p.vx;
@@ -240,7 +307,7 @@ function stepPhysics(bridgeActive){
   }
   if(p.y > PIT_Y + 40){ p.x = START_POS.x; p.y = START_POS.y; p.vx = 0; p.vy = 0; }
   if(p.x < PW/2) p.x = PW/2;
-  if(p.x > LEVEL.w - PW/2) p.x = LEVEL.w - PW/2;
+  if(p.x > lvl.width - PW/2) p.x = lvl.width - PW/2;
 }
 
 function isOnPad(pos, rect){
@@ -258,46 +325,57 @@ function drawPlayer(x,y,color,label){
   ctx.fillText(label, x, y-PH-6); ctx.textAlign = 'left';
 }
 
-function drawLevel(remotePositions, bridgeActive){
+function drawLevel(remotePositions, bridgeStates, t){
   const lvl = L();
-  ctx.clearRect(0,0,LEVEL.w,LEVEL.h);
+  ctx.clearRect(0,0,lvl.width,CANVAS_H);
   ctx.strokeStyle = 'rgba(74,222,128,0.05)';
-  for(let x=0;x<LEVEL.w;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,LEVEL.h); ctx.stroke(); }
+  for(let x=0;x<lvl.width;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,CANVAS_H); ctx.stroke(); }
 
-  const pitX = lvl.groundLeft.x + lvl.groundLeft.w;
-  const pitW = lvl.groundRight.x - pitX;
-  ctx.fillStyle = '#0a0208'; ctx.fillRect(pitX,340,pitW,60);
+  // pit background under everything that isn't ground
+  ctx.fillStyle = '#0a0208';
+  ctx.fillRect(0,340,lvl.width,60);
 
   ctx.fillStyle = '#141b24'; ctx.strokeStyle = '#2f6b47'; ctx.lineWidth = 1.5;
-  [lvl.groundLeft, lvl.groundRight].forEach(r=>{ ctx.fillRect(r.x,r.y,r.w,r.h); ctx.strokeRect(r.x,r.y,r.w,r.h); });
+  lvl.grounds.forEach(r=>{ ctx.fillRect(r.x,r.y,r.w,r.h); ctx.strokeRect(r.x,r.y,r.w,r.h); });
 
-  if(bridgeActive){
-    ctx.fillStyle = 'rgba(74,222,128,0.18)'; ctx.strokeStyle = '#4ade80';
-    ctx.fillRect(lvl.bridge.x,lvl.bridge.y,lvl.bridge.w,lvl.bridge.h); ctx.strokeRect(lvl.bridge.x,lvl.bridge.y,lvl.bridge.w,lvl.bridge.h);
-  } else {
-    ctx.strokeStyle = 'rgba(245,165,36,0.4)'; ctx.setLineDash([4,4]);
-    ctx.strokeRect(lvl.bridge.x,lvl.bridge.y,lvl.bridge.w,lvl.bridge.h); ctx.setLineDash([]);
-  }
-
-  lvl.switchPads.forEach(pad=>{
-    const onIt = bridgeActive; // simple shared visual state; still fine per-pad since both control same bridge
-    ctx.fillStyle = onIt ? '#4ade80' : '#f5a524';
-    ctx.fillRect(pad.x,pad.y,pad.w,pad.h);
-    ctx.fillStyle = '#c7d1d9'; ctx.font = '9px monospace';
-    ctx.fillText(lvl.switchMode === 'hold' ? 'HOLD' : 'SWITCH', pad.x, pad.y-4);
+  lvl.bridges.forEach(bridge=>{
+    const active = bridgeStates[bridge.id];
+    if(active){
+      ctx.fillStyle = 'rgba(74,222,128,0.18)'; ctx.strokeStyle = '#4ade80';
+      ctx.fillRect(bridge.rect.x,bridge.rect.y,bridge.rect.w,bridge.rect.h);
+      ctx.strokeRect(bridge.rect.x,bridge.rect.y,bridge.rect.w,bridge.rect.h);
+    } else {
+      ctx.strokeStyle = 'rgba(245,165,36,0.4)'; ctx.setLineDash([4,4]);
+      ctx.strokeRect(bridge.rect.x,bridge.rect.y,bridge.rect.w,bridge.rect.h); ctx.setLineDash([]);
+    }
+    bridge.switchPads.forEach(pad=>{
+      ctx.fillStyle = active ? '#4ade80' : '#f5a524';
+      ctx.fillRect(pad.x,pad.y,pad.w,pad.h);
+      ctx.fillStyle = '#c7d1d9'; ctx.font = '9px monospace';
+      ctx.fillText(bridge.mode === 'hold' ? 'HOLD' : 'SWITCH', pad.x, pad.y-4);
+    });
   });
 
-  ctx.fillStyle = roomRowState.gateOpen ? '#4ade80' : '#f5a524';
-  ctx.fillRect(lvl.plateA.x,lvl.plateA.y,lvl.plateA.w,lvl.plateA.h);
-  ctx.fillRect(lvl.plateB.x,lvl.plateB.y,lvl.plateB.w,lvl.plateB.h);
-  ctx.fillStyle = '#c7d1d9';
-  ctx.fillText('A', lvl.plateA.x+lvl.plateA.w/2-3, lvl.plateA.y-4);
-  ctx.fillText('B', lvl.plateB.x+lvl.plateB.w/2-3, lvl.plateB.y-4);
+  lvl.movingPlatforms.forEach(mp=>{
+    const r = getMovingPlatformRect(mp, t);
+    ctx.fillStyle = 'rgba(125,211,252,0.2)'; ctx.strokeStyle = '#7dd3fc';
+    ctx.fillRect(r.x,r.y,r.w,r.h); ctx.strokeRect(r.x,r.y,r.w,r.h);
+  });
 
-  ctx.fillStyle = roomRowState.gateOpen ? 'rgba(74,222,128,0.15)' : 'rgba(227,72,72,0.25)';
-  ctx.fillRect(lvl.gateX, 260, 12, 80);
-  ctx.strokeStyle = roomRowState.gateOpen ? '#4ade80' : '#e34848';
-  ctx.strokeRect(lvl.gateX, 260, 12, 80);
+  lvl.gates.forEach(g=>{
+    const open = roomRowState.gatesOpen && roomRowState.gatesOpen[g.id];
+    ctx.fillStyle = open ? '#4ade80' : '#f5a524';
+    ctx.fillRect(g.plateA.x,g.plateA.y,g.plateA.w,g.plateA.h);
+    ctx.fillRect(g.plateB.x,g.plateB.y,g.plateB.w,g.plateB.h);
+    ctx.fillStyle = '#c7d1d9'; ctx.font='9px monospace';
+    ctx.fillText('A', g.plateA.x+g.plateA.w/2-3, g.plateA.y-4);
+    ctx.fillText('B', g.plateB.x+g.plateB.w/2-3, g.plateB.y-4);
+
+    ctx.fillStyle = open ? 'rgba(74,222,128,0.15)' : 'rgba(227,72,72,0.25)';
+    ctx.fillRect(g.gateX, 260, 12, 80);
+    ctx.strokeStyle = open ? '#4ade80' : '#e34848';
+    ctx.strokeRect(g.gateX, 260, 12, 80);
+  });
 
   Object.entries(remotePositions).forEach(([name,pos])=>drawPlayer(pos.x, pos.y, '#f5a524', name));
   drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName);
@@ -341,44 +419,53 @@ function getInterpolatedRemotePositions(){
 // ---------- GAME LOOP ----------
 function gameLoop(){
   const lvl = L();
+  const t = Date.now();
   const preview = getInterpolatedRemotePositions();
 
-  let bridgeActive;
-  if(lvl.switchMode === 'toggle'){
-    bridgeActive = roomRowState.switchOn;
-  } else {
-    const iOnSwitch = lvl.switchPads.some(pad => isOnPad(myPlayer, pad));
-    const otherOnSwitch = Object.values(preview).some(pos => lvl.switchPads.some(pad => isOnPad(pos, pad)));
-    bridgeActive = iOnSwitch || otherOnSwitch;
-  }
+  // resolve bridge states first (hold-type needs live positions)
+  const bridgeStates = {};
+  lvl.bridges.forEach(b=>{ bridgeStates[b.id] = isBridgeActive(b, myPlayer, preview); });
 
-  stepPhysics(bridgeActive);
+  stepPhysics(bridgeStates, t);
 
-  if(lvl.switchMode === 'toggle' && lvl.switchPads.some(pad => isOnPad(myPlayer, pad)) && !roomRowState.switchOn){
-    roomRowState.switchOn = true;
-    db.ref(`rooms/${roomCode}/state/switchOn`).set(true);
-  }
+  // toggle bridges latch on once pressed
+  lvl.bridges.forEach(b=>{
+    if(b.mode === 'toggle' && b.switchPads.some(pad=>isOnPad(myPlayer,pad)) && !(roomRowState.bridgesOn && roomRowState.bridgesOn[b.id])){
+      db.ref(`rooms/${roomCode}/state/bridgesOn/${b.id}`).set(true);
+      roomRowState.bridgesOn = roomRowState.bridgesOn || {};
+      roomRowState.bridgesOn[b.id] = true;
+    }
+  });
 
   const remote = getInterpolatedRemotePositions();
-  let otherOnA=false, otherOnB=false;
-  Object.values(remote).forEach(pos=>{
-    if(isOnPad(pos, lvl.plateA)) otherOnA = true;
-    if(isOnPad(pos, lvl.plateB)) otherOnB = true;
-  });
-  const iAmOnA = isOnPad(myPlayer, lvl.plateA), iAmOnB = isOnPad(myPlayer, lvl.plateB);
-  const bothCovered = (iAmOnA && otherOnB) || (iAmOnB && otherOnA);
-  if(bothCovered && !roomRowState.gateOpen){
-    roomRowState.gateOpen = true;
-    db.ref(`rooms/${roomCode}/state/gateOpen`).set(true);
-  }
 
+  // check each gate for dual-plate activation
+  lvl.gates.forEach(g=>{
+    const already = roomRowState.gatesOpen && roomRowState.gatesOpen[g.id];
+    if(already) return;
+    const iOnA = isOnPad(myPlayer, g.plateA), iOnB = isOnPad(myPlayer, g.plateB);
+    let otherOnA=false, otherOnB=false;
+    Object.values(remote).forEach(pos=>{
+      if(isOnPad(pos, g.plateA)) otherOnA = true;
+      if(isOnPad(pos, g.plateB)) otherOnB = true;
+    });
+    const bothCovered = (iOnA && otherOnB) || (iOnB && otherOnA);
+    if(bothCovered){
+      db.ref(`rooms/${roomCode}/state/gatesOpen/${g.id}`).set(true);
+      roomRowState.gatesOpen = roomRowState.gatesOpen || {};
+      roomRowState.gatesOpen[g.id] = true;
+    }
+  });
+
+  const finalGate = lvl.gates[lvl.gates.length-1];
+  const finalOpen = !!(roomRowState.gatesOpen && roomRowState.gatesOpen[finalGate.id]);
   const otherNames = Array.from(onlineNames).filter(n => n !== myName);
-  const iAmPastGate = myPlayer.x > lvl.gateX - 4;
+  const iAmPastGate = myPlayer.x > finalGate.gateX - 4;
   const othersPastGate = otherNames.length === 0 || otherNames.every(name=>{
     const pos = remote[name];
-    return pos && pos.x > lvl.gateX - 4;
+    return pos && pos.x > finalGate.gateX - 4;
   });
-  const cleared = roomRowState.gateOpen && iAmPastGate && othersPastGate;
+  const cleared = finalOpen && iAmPastGate && othersPastGate;
   const isLastLevel = currentLevel >= LEVELS.length - 1;
   const banner = document.getElementById('clearBanner');
 
@@ -390,15 +477,22 @@ function gameLoop(){
         : `<div class="clear-banner">STAGE CLEAR!<br><span style="font-size:12px;color:#8a98a8;">다음 구역으로 이동 중...</span></div>`;
     }
     if(!isLastLevel){
+      const sourceLevel = currentLevel;
       setTimeout(()=>{
-        db.ref(`rooms/${roomCode}/state`).update({ level: currentLevel+1, switchOn:false, gateOpen:false });
+        // transaction guarantees only ONE client's clear actually advances the level,
+        // even if both clients detect "cleared" at nearly the same time
+        db.ref(`rooms/${roomCode}/state`).transaction(current=>{
+          if(!current) current = { level:0, bridgesOn:{}, gatesOpen:{} };
+          if((current.level||0) !== sourceLevel) return current; // already advanced by the other player
+          return { level: sourceLevel+1, bridgesOn:{}, gatesOpen:{} };
+        });
       }, 1400);
     }
   } else if(!cleared && !advancing && banner){
     banner.innerHTML = '';
   }
 
-  drawLevel(remote, bridgeActive);
+  drawLevel(remote, bridgeStates, t);
   rafId = requestAnimationFrame(gameLoop);
 }
 
@@ -426,14 +520,15 @@ function setupRealtime(){
   db.ref(`rooms/${roomCode}/state`).on('value', (snap)=>{
     const val = snap.val();
     if(val){
-      roomRowState.switchOn = !!val.switchOn;
-      roomRowState.gateOpen = !!val.gateOpen;
+      roomRowState.bridgesOn = val.bridgesOn || {};
+      roomRowState.gatesOpen = val.gatesOpen || {};
       const lvl = typeof val.level === 'number' ? val.level : 0;
       if(lvl !== currentLevel){
         currentLevel = Math.max(0, Math.min(LEVELS.length-1, lvl));
         advancing = false;
         myPlayer.x = START_POS.x; myPlayer.y = START_POS.y; myPlayer.vx = 0; myPlayer.vy = 0;
         updateStageIndicator();
+        if(canvas){ canvas.width = L().width; canvas.height = CANVAS_H; }
         const banner = document.getElementById('clearBanner');
         if(banner) banner.innerHTML = '';
       }
