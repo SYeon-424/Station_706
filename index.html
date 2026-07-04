@@ -270,6 +270,8 @@ let currentLevel = 0;
 let advancing = false;
 let launchArmed = {};
 let localPadTouch = {};
+let pendingLaunchFire = {};
+let lastSeenLaunchTs = {};
 let riddenMpIndex = null;
 let riddenMpPrevRect = null;
 let lastLandedMpIndex = null;
@@ -677,9 +679,11 @@ function gameLoop(){
     }
   });
 
-  // co-op launch pads: both players standing on the pair launches whoever is on them upward.
-  // Uses a short grace window over recent raw position samples (not just the single
-  // current interpolated point) so network lag doesn't cause "only one of us launched".
+  // co-op launch pads: whoever's client first notices both players covering the pads
+  // fires a single shared "launchFire" event through the database; BOTH clients then
+  // apply the boost when they receive that event, instead of each client separately
+  // guessing the other player's (slightly delayed) position. This keeps the two
+  // launches tightly in sync regardless of individual network lag.
   const LAUNCH_GRACE_MS = 400;
   lvl.launchPads.forEach(lp=>{
     const iOnA = isOnPad(myPlayer, lp.padA), iOnB = isOnPad(myPlayer, lp.padB);
@@ -700,10 +704,20 @@ function gameLoop(){
 
     const bothCovered = (myRecentA && otherRecentB) || (myRecentB && otherRecentA);
     if(!iOnEither){ launchArmed[lp.id] = true; }
+
+    // apply a shared fire event if one just arrived and we're actually on the pad
+    if(pendingLaunchFire[lp.id]){
+      delete pendingLaunchFire[lp.id];
+      if(iOnEither){
+        myPlayer.vy = lp.boost;
+        myPlayer.onGround = false;
+      }
+    }
+
+    // first client to detect the simultaneous press broadcasts the fire event once
     if(bothCovered && iOnEither && launchArmed[lp.id] !== false){
-      myPlayer.vy = lp.boost;
-      myPlayer.onGround = false;
       launchArmed[lp.id] = false;
+      db.ref(`rooms/${roomCode}/state/launchFire/${lp.id}`).set(t);
     }
   });
 
@@ -800,6 +814,8 @@ function setupRealtime(){
         riddenMpIndex = null;
         riddenMpPrevRect = null;
         lastFrameTime = null;
+        pendingLaunchFire = {};
+        lastSeenLaunchTs = {};
         const sp = startPos();
         myPlayer.x = sp.x; myPlayer.y = sp.y; myPlayer.vx = 0; myPlayer.vy = 0;
         updateStageIndicator();
@@ -808,6 +824,17 @@ function setupRealtime(){
         if(banner) banner.innerHTML = '';
       }
     }
+  });
+
+  // shared launch-pad fire events (see gameLoop) — pushed the instant either client
+  // detects the simultaneous press, received by both at roughly the same time
+  db.ref(`rooms/${roomCode}/state/launchFire`).on('value', (snap)=>{
+    const val = snap.val() || {};
+    Object.entries(val).forEach(([padId, ts])=>{
+      if(lastSeenLaunchTs[padId] === ts) return;
+      lastSeenLaunchTs[padId] = ts;
+      pendingLaunchFire[padId] = true;
+    });
   });
 
   db.ref('.info/connected').on('value', (snap)=>{
