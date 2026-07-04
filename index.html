@@ -629,6 +629,7 @@ function gameLoop(){
       myPlayer.y += newRect.y - riddenMpPrevRect.y;
     }
     riddenMpPrevRect = newRect;
+    myPlayer.onGround = true; // guarantee jump works reliably while riding
   } else {
     riddenMpPrevRect = null;
   }
