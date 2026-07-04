@@ -233,38 +233,43 @@ const LEVELS = [
       { id:'g_final', plateA:{x:700,y:330,w:34,h:10}, plateB:{x:800,y:330,w:34,h:10}, gateX:950 }
     ]
   },
-  { // STAGE 10 - 최종 관문: 붕괴 발판 + 릴레이 브릿지 + 발사대 + 레이저 + 수직 엘리베이터 총동원
-    width: 1320, height: 750, start:{x:40,y:660},
+  { // STAGE 10 - 최종 관문: 붕괴 발판 + 릴레이 브릿지 + 가로 이동 발판 + 발사대 + 레이저 + 수직 엘리베이터 총동원
+    width: 1650, height: 750, start:{x:40,y:660},
     grounds: [
       {x:0,    y:690, w:130, h:60},
       {x:360,  y:500, w:150, h:20},
       {x:660,  y:500, w:120, h:20},
-      {x:850,  y:320, w:250, h:20},
-      {x:1170, y:520, w:150, h:60}
+      {x:1000, y:500, w:150, h:20},
+      {x:1200, y:320, w:250, h:20},
+      {x:1500, y:520, w:150, h:60}
     ],
     bridges: [
       { id:'b1', rect:{x:510,y:500,w:150,h:20}, mode:'hold',
         switchPads:[ {x:430,y:480,w:50,h:10}, {x:670,y:480,w:50,h:10} ] }
     ],
-    movingPlatforms: [ {x0:1110,y0:300,x1:1110,y1:520,w:50,h:18,period:2600} ],
+    movingPlatforms: [
+      { x0:800, y0:500, x1:960, y1:500, w:60, h:18, period:2400 }, // 가로 이동 발판
+      { x0:1470, y0:300, x1:1470, y1:520, w:50, h:18, period:2600 } // 수직 엘리베이터
+    ],
     crumbles: [
       { id:'c1', rect:{x:160,y:630,w:70,h:18}, warnMs:600, fallMs:2200 },
       { id:'c2', rect:{x:260,y:570,w:70,h:18}, warnMs:600, fallMs:2200 }
     ],
     hazards: [
-      { id:'h1', rect:{x:960,y:240,w:26,h:100}, period:1700, activeFraction:0.42 }
+      { id:'h1', rect:{x:1310,y:240,w:26,h:100}, period:1700, activeFraction:0.42 }
     ],
     launchPads: [
-      { id:'lp1', padA:{x:690,y:480,w:34,h:10}, padB:{x:740,y:480,w:34,h:10}, boost:-20 }
+      { id:'lp1', padA:{x:1030,y:480,w:34,h:10}, padB:{x:1080,y:480,w:34,h:10}, boost:-20 }
     ],
     gates: [
-      { id:'g_final', plateA:{x:1200,y:500,w:34,h:10}, plateB:{x:1250,y:500,w:34,h:10}, gateX:1290 }
+      { id:'g_final', plateA:{x:1520,y:500,w:34,h:10}, plateB:{x:1570,y:500,w:34,h:10}, gateX:1620 }
     ]
   }
 ];
 let currentLevel = 0;
 let advancing = false;
 let launchArmed = {};
+let localPadTouch = {};
 let riddenMpIndex = null;
 let riddenMpPrevRect = null;
 let lastLandedMpIndex = null;
@@ -327,6 +332,8 @@ function renderLogin(){
     myName = n; roomCode = r;
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.database();
+    // always start a fresh session at stage 1; use the debug jump control to skip ahead
+    await db.ref(`rooms/${roomCode}/state`).set({level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}});
     startGame();
   };
 }
@@ -365,6 +372,8 @@ function renderShell(){
   document.getElementById('jumpStageBtn').onclick = async ()=>{
     const n = parseInt(document.getElementById('jumpStageInput').value, 10);
     if(!n || n < 1 || n > LEVELS.length) return;
+    const pw = prompt("디버그 비밀번호를 입력하세요");
+    if(pw !== "4444"){ alert("비밀번호가 틀렸습니다."); return; }
     await db.ref(`rooms/${roomCode}/state`).set({level: n-1, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}});
   };
 }
@@ -661,16 +670,28 @@ function gameLoop(){
     }
   });
 
-  // co-op launch pads: both players standing on the pair launches whoever is on them upward
+  // co-op launch pads: both players standing on the pair launches whoever is on them upward.
+  // Uses a short grace window over recent raw position samples (not just the single
+  // current interpolated point) so network lag doesn't cause "only one of us launched".
+  const LAUNCH_GRACE_MS = 400;
   lvl.launchPads.forEach(lp=>{
     const iOnA = isOnPad(myPlayer, lp.padA), iOnB = isOnPad(myPlayer, lp.padB);
     const iOnEither = iOnA || iOnB;
-    let otherOnA=false, otherOnB=false;
-    Object.values(remote).forEach(pos=>{
-      if(isOnPad(pos, lp.padA)) otherOnA = true;
-      if(isOnPad(pos, lp.padB)) otherOnB = true;
+    if(iOnA) localPadTouch[lp.id+':A'] = t;
+    if(iOnB) localPadTouch[lp.id+':B'] = t;
+    const myRecentA = localPadTouch[lp.id+':A'] && (t - localPadTouch[lp.id+':A']) <= LAUNCH_GRACE_MS;
+    const myRecentB = localPadTouch[lp.id+':B'] && (t - localPadTouch[lp.id+':B']) <= LAUNCH_GRACE_MS;
+
+    let otherRecentA=false, otherRecentB=false;
+    Object.entries(lastRemoteSnapshots).forEach(([name, buf])=>{
+      buf.forEach(s=>{
+        if((t - s.t) > LAUNCH_GRACE_MS) return;
+        if(isOnPad(s, lp.padA)) otherRecentA = true;
+        if(isOnPad(s, lp.padB)) otherRecentB = true;
+      });
     });
-    const bothCovered = (iOnA && otherOnB) || (iOnB && otherOnA);
+
+    const bothCovered = (myRecentA && otherRecentB) || (myRecentB && otherRecentA);
     if(!iOnEither){ launchArmed[lp.id] = true; }
     if(bothCovered && iOnEither && launchArmed[lp.id] !== false){
       myPlayer.vy = lp.boost;
@@ -768,6 +789,7 @@ function setupRealtime(){
         currentLevel = Math.max(0, Math.min(LEVELS.length-1, lvl));
         advancing = false;
         launchArmed = {};
+        localPadTouch = {};
         riddenMpIndex = null;
         riddenMpPrevRect = null;
         lastFrameTime = null;
