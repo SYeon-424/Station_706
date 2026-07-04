@@ -353,7 +353,7 @@ function renderLogin(){
   const configured = !FIREBASE_CONFIG.apiKey.includes("YOUR_API_KEY");
   app.innerHTML = `
     <div class="center">
-      <h1 class="glow" style="font-size:28px;">정거장 706: 협동 플랫포머</h1>
+      <h1 class="glow" style="font-size:28px;">정거장 706</h1>
       <div class="muted" style="margin-bottom:24px;">Stage 1~10</div>
       ${!configured ? `<div class="card" style="max-width:380px;border-color:var(--amber);color:var(--amber);">FIREBASE_CONFIG가 아직 설정되지 않았어요. 코드 상단 값을 콘솔에서 복사한 값으로 바꿔주세요.</div>` : ''}
       <div class="card" style="width:100%;max-width:380px;text-align:left;">
