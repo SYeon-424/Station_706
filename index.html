@@ -46,6 +46,35 @@
   .status-pill{font-size:11px;padding:3px 9px;border-radius:10px;border:1px solid var(--line);}
   .status-pill.connected{color:var(--green);border-color:var(--green-dim);}
   .status-pill.pending{color:var(--amber);}
+
+  .station-title{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .oxy-wrap{display:flex;align-items:center;gap:8px;}
+  .oxy-label{font-size:10px;color:var(--slate);letter-spacing:1px;}
+  .oxy-bar-outer{width:120px;height:12px;border:1px solid var(--line);border-radius:3px;background:#0a0f16;overflow:hidden;position:relative;}
+  .oxy-bar-inner{height:100%;width:100%;background:var(--green);box-shadow:0 0 6px rgba(74,222,128,0.6);transition:width 0.3s linear, background-color 0.3s linear;}
+  .oxy-time{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--green);min-width:38px;}
+
+  .sf-overlay{
+    position:fixed; inset:0; background:rgba(4,6,9,0.88); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .sf-panel{
+    max-width:480px; width:100%; background:var(--panel); border:1px solid var(--green-dim);
+    border-radius:8px; padding:26px 28px; box-shadow:0 0 30px rgba(74,222,128,0.12);
+  }
+  .sf-panel.danger{border-color:var(--red); box-shadow:0 0 30px rgba(227,72,72,0.18);}
+  .sf-panel-title{font-family:'Share Tech Mono',monospace; font-size:20px; letter-spacing:1px; margin-bottom:14px;}
+  .sf-panel-title.ok{color:var(--green); text-shadow:0 0 8px rgba(74,222,128,0.5);}
+  .sf-panel-title.danger{color:var(--red); text-shadow:0 0 8px rgba(227,72,72,0.5);}
+  .sf-body{font-size:13px; line-height:1.7; color:var(--white); margin-bottom:16px;}
+  .sf-hr{border:none;border-top:1px dashed var(--line);margin:14px 0;}
+  .ready-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; font-size:13px;}
+  .ready-tag{font-size:11px; padding:3px 10px; border-radius:10px; border:1px solid var(--line);}
+  .ready-tag.ready{color:var(--green); border-color:var(--green-dim);}
+  .ready-tag.wait{color:var(--amber); border-color:var(--amber);}
+  .r-key{display:inline-block; border:1px solid var(--green-dim); border-radius:4px; padding:2px 10px; margin:0 3px; color:var(--green); font-family:'Share Tech Mono',monospace;}
+  .blink{animation:blinkAnim 1.2s steps(2,start) infinite;}
+  @keyframes blinkAnim{ to{ visibility:hidden; } }
 </style>
 </head>
 <body>
@@ -71,7 +100,16 @@ let posSendTimer = null;
 let keys = new Set();
 let lastRemoteSnapshots = {};
 let onlineNames = new Set();
-let roomRowState = { level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{} };
+let roomRowState = { level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}, ready:{}, gameStarted:false, startTime:null, dead:false, deathReason:null, won:false };
+
+// phase: 'briefing' | 'playing' | 'dead' | 'won'
+let gamePhase = 'briefing';
+let oxygenTriggerSent = false;
+const OXYGEN_TOTAL_MS = 5 * 60 * 1000; // 5분 제한시간
+
+function defaultRoomState(){
+  return { level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}, ready:{}, gameStarted:false, startTime:null, dead:false, deathReason:null, won:false };
+}
 
 const GRAVITY = 0.65, JUMP_V = -11.5, MOVE_SPEED = 3.4;
 const PW = 22, PH = 30;
@@ -335,9 +373,79 @@ function renderLogin(){
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.database();
     // always start a fresh session at stage 1; use the debug jump control to skip ahead
-    await db.ref(`rooms/${roomCode}/state`).set({level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}});
-    startGame();
+    await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
+    initGame();
   };
+}
+
+// ---------- BRIEFING (SF 상태창, R 준비완료) ----------
+function renderBriefing(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="center">
+      <div class="sf-panel" style="max-width:520px;">
+        <div class="sf-panel-title ok">// 비상 방송: 정거장 706 //</div>
+        <div class="sf-body">
+          궤도 정거장 706의 주 생명유지 장치가 손상되었습니다.<br>
+          예비 산소는 앞으로 <b class="glow">5분</b>밖에 남지 않았습니다.<br>
+          탈출 포드까지 가는 통로에는 10개의 격리 구역이 있으며,
+          각 구역의 문은 두 사람이 동시에 압력판을 밟아야 열립니다.<br>
+          동료와 협력하여 산소가 바닥나기 전에 정거장을 탈출하십시오.
+        </div>
+        <div class="sf-hr"></div>
+        <div class="small" style="margin-bottom:6px;letter-spacing:1px;">READY CHECK</div>
+        <div id="readyList"></div>
+        <div class="sf-hr"></div>
+        <div class="small blink" style="text-align:center;">
+          <span class="r-key">R</span> 키를 눌러 준비 완료
+        </div>
+      </div>
+    </div>
+  `;
+  renderReadyList();
+}
+
+function renderReadyList(){
+  const listEl = document.getElementById('readyList');
+  if(!listEl) return;
+  const names = Array.from(onlineNames);
+  if(names.length === 0){
+    listEl.innerHTML = `<div class="small">연결 대기 중...</div>`;
+    return;
+  }
+  const ready = roomRowState.ready || {};
+  listEl.innerHTML = names.map(name=>{
+    const isReady = !!ready[name];
+    return `
+      <div class="ready-row">
+        <span>${escapeHtml(name)}${name===myName ? ' <span class="small">(나)</span>' : ''}</span>
+        <span class="ready-tag ${isReady?'ready':'wait'}">${isReady ? 'READY' : '대기 중'}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleMyReady(){
+  if(!db) return;
+  const cur = !!(roomRowState.ready && roomRowState.ready[myName]);
+  db.ref(`rooms/${roomCode}/state/ready/${myName}`).set(!cur);
+}
+
+function maybeLaunchGame(){
+  // any client can flip gameStarted once every online player is marked ready;
+  // the transaction guards against a double-start if both clients notice at once
+  const names = Array.from(onlineNames);
+  if(names.length === 0) return;
+  const ready = roomRowState.ready || {};
+  const allReady = names.every(n=>ready[n]);
+  if(!allReady) return;
+  db.ref(`rooms/${roomCode}/state`).transaction(current=>{
+    if(!current) return current;
+    if(current.gameStarted) return current; // already started
+    current.gameStarted = true;
+    current.startTime = Date.now();
+    return current;
+  });
 }
 
 // ---------- SHELL ----------
@@ -345,7 +453,14 @@ function renderShell(){
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="top-bar">
-      <div><h2 class="glow" style="font-size:18px;">정거장 706</h2><div class="small">ROOM ${escapeHtml(roomCode)}</div></div>
+      <div class="station-title">
+        <div><h2 class="glow" style="font-size:18px;">정거장 706</h2><div class="small">ROOM ${escapeHtml(roomCode)}</div></div>
+        <div class="oxy-wrap">
+          <span class="oxy-label">OXYGEN</span>
+          <div class="oxy-bar-outer"><div class="oxy-bar-inner" id="oxyBarInner"></div></div>
+          <span class="oxy-time" id="oxyTimeText">05:00</span>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;gap:12px;">
         <span id="stageIndicator" style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--amber);text-shadow:0 0 6px rgba(245,165,36,0.4);letter-spacing:1px;">STAGE 1/10</span>
         <span class="status-pill pending" id="statusPill">연결 중...</span>
@@ -369,14 +484,18 @@ function renderShell(){
   ctx = canvas.getContext('2d');
   document.getElementById('resetLink').onclick = async ()=>{
     if(!confirm("이 방을 스테이지 1부터 초기화할까요?")) return;
-    await db.ref(`rooms/${roomCode}/state`).set({level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}});
+    await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
   };
   document.getElementById('jumpStageBtn').onclick = async ()=>{
     const n = parseInt(document.getElementById('jumpStageInput').value, 10);
     if(!n || n < 1 || n > LEVELS.length) return;
     const pw = prompt("디버그 비밀번호를 입력하세요");
     if(pw !== "4444"){ alert("비밀번호가 틀렸습니다."); return; }
-    await db.ref(`rooms/${roomCode}/state`).set({level: n-1, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}});
+    const base = defaultRoomState();
+    base.level = n-1;
+    base.gameStarted = true;
+    base.startTime = Date.now();
+    await db.ref(`rooms/${roomCode}/state`).set(base);
   };
 }
 
@@ -620,13 +739,48 @@ function getInterpolatedRemotePositions(){
 
 // ---------- GAME LOOP ----------
 let lastFrameTime = null;
+
+function updateOxygenBar(remainingMs){
+  const inner = document.getElementById('oxyBarInner');
+  const text = document.getElementById('oxyTimeText');
+  if(!inner || !text) return;
+  const frac = Math.max(0, Math.min(1, remainingMs / OXYGEN_TOTAL_MS));
+  inner.style.width = (frac*100).toFixed(1) + '%';
+  let color = 'var(--green)';
+  if(frac <= 0.2) color = 'var(--red)';
+  else if(frac <= 0.45) color = 'var(--amber)';
+  inner.style.background = color;
+  const totalSec = Math.max(0, Math.ceil(remainingMs/1000));
+  const mm = Math.floor(totalSec/60).toString().padStart(2,'0');
+  const ss = (totalSec%60).toString().padStart(2,'0');
+  text.textContent = `${mm}:${ss}`;
+  text.style.color = color;
+}
+
 function gameLoop(){
+  if(gamePhase !== 'playing') return; // frozen once dead/won/still briefing
   const lvl = L();
   const t = Date.now();
   let dt = lastFrameTime ? (t - lastFrameTime) / 16.6667 : 1; // normalize to "60fps frames"
   dt = Math.max(0.2, Math.min(2.5, dt)); // clamp against tab-switch/lag spikes
   lastFrameTime = t;
   const preview = getInterpolatedRemotePositions();
+
+  // ---- 산소(제한시간) 처리 ----
+  if(roomRowState.startTime){
+    const remainingMs = OXYGEN_TOTAL_MS - (t - roomRowState.startTime);
+    updateOxygenBar(remainingMs);
+    if(remainingMs <= 0 && !oxygenTriggerSent && !roomRowState.dead && !roomRowState.won){
+      oxygenTriggerSent = true;
+      db.ref(`rooms/${roomCode}/state`).transaction(current=>{
+        if(!current) return current;
+        if(current.dead || current.won) return current;
+        current.dead = true;
+        current.deathReason = 'oxygen';
+        return current;
+      });
+    }
+  }
 
   // resolve bridge states first (hold-type needs live positions)
   const bridgeStates = {};
@@ -755,18 +909,29 @@ function gameLoop(){
     advancing = true;
     if(banner){
       banner.innerHTML = isLastLevel
-        ? `<div class="clear-banner">ALL CLEAR!<br><span style="font-size:12px;color:#8a98a8;">모든 구역을 통과했다</span></div>`
+        ? `<div class="clear-banner">ALL CLEAR!<br><span style="font-size:12px;color:#8a98a8;">탈출 포드로 진입 중...</span></div>`
         : `<div class="clear-banner">STAGE CLEAR!<br><span style="font-size:12px;color:#8a98a8;">다음 구역으로 이동 중...</span></div>`;
     }
-    if(!isLastLevel){
+    if(isLastLevel){
+      db.ref(`rooms/${roomCode}/state`).transaction(current=>{
+        if(!current) return current;
+        if(current.dead || current.won) return current;
+        current.won = true;
+        return current;
+      });
+    } else {
       const sourceLevel = currentLevel;
       setTimeout(()=>{
         // transaction guarantees only ONE client's clear actually advances the level,
         // even if both clients detect "cleared" at nearly the same time
         db.ref(`rooms/${roomCode}/state`).transaction(current=>{
-          if(!current) current = { level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{} };
+          if(!current) return defaultRoomState();
           if((current.level||0) !== sourceLevel) return current; // already advanced by the other player
-          return { level: sourceLevel+1, bridgesOn:{}, gatesOpen:{}, crumbleStart:{} };
+          current.level = sourceLevel+1;
+          current.bridgesOn = {};
+          current.gatesOpen = {};
+          current.crumbleStart = {};
+          return current;
         });
       }, 1400);
     }
@@ -779,9 +944,70 @@ function gameLoop(){
 }
 
 // ---------- NETWORKING (Firebase Realtime Database) ----------
-function setupRealtime(){
-  const pill = document.getElementById('statusPill');
+function removeOverlay(){
+  const overlay = document.getElementById('sfOverlay');
+  if(overlay) overlay.remove();
+}
 
+function renderDeathOverlay(){
+  let overlay = document.getElementById('sfOverlay');
+  if(!overlay){ overlay = document.createElement('div'); overlay.id = 'sfOverlay'; document.body.appendChild(overlay); }
+  overlay.className = 'sf-overlay';
+  overlay.innerHTML = `
+    <div class="sf-panel danger">
+      <div class="sf-panel-title danger">// 생명유지 시스템 정지 //</div>
+      <div class="sf-body">
+        예비 산소가 완전히 고갈되었습니다.<br>
+        정거장 706 승무원의 생체 신호가 더 이상 감지되지 않습니다.<br>
+        <span class="muted">임무 실패 — 탈출하지 못한 채 사망했다.</span>
+      </div>
+      <button id="retryBtn" style="width:100%;">다시 도전하기</button>
+    </div>
+  `;
+  document.getElementById('retryBtn').onclick = async ()=>{
+    await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
+  };
+}
+
+function renderWinOverlay(){
+  let overlay = document.getElementById('sfOverlay');
+  if(!overlay){ overlay = document.createElement('div'); overlay.id = 'sfOverlay'; document.body.appendChild(overlay); }
+  overlay.className = 'sf-overlay';
+  overlay.innerHTML = `
+    <div class="sf-panel">
+      <div class="sf-panel-title ok">// 탈출 성공 //</div>
+      <div class="sf-body">
+        탈출 포드가 정거장 706에서 무사히 분리되었습니다.<br>
+        10개 격리 구역을 모두 통과해 승무원 전원이 생존했습니다.<br>
+        <span class="glow">정거장 706에서 성공적으로 탈출했다.</span>
+      </div>
+      <button id="retryBtn" style="width:100%;">새 임무 시작</button>
+    </div>
+  `;
+  document.getElementById('retryBtn').onclick = async ()=>{
+    await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
+  };
+}
+
+function applyLevelReset(lvl){
+  currentLevel = Math.max(0, Math.min(LEVELS.length-1, lvl));
+  advancing = false;
+  launchArmed = {};
+  localPadTouch = {};
+  riddenMpIndex = null;
+  riddenMpPrevRect = null;
+  lastFrameTime = null;
+  pendingLaunchFire = {};
+  lastSeenLaunchTs = {};
+  const sp = startPos();
+  myPlayer.x = sp.x; myPlayer.y = sp.y; myPlayer.vx = 0; myPlayer.vy = 0;
+  updateStageIndicator();
+  if(canvas){ canvas.width = L().width; canvas.height = L().height; }
+  const banner = document.getElementById('clearBanner');
+  if(banner) banner.innerHTML = '';
+}
+
+function setupRealtime(){
   const myRef = db.ref(`rooms/${roomCode}/players/${myName}`);
   myRef.onDisconnect().remove();
 
@@ -789,6 +1015,7 @@ function setupRealtime(){
     const val = snap.val() || {};
     onlineNames = new Set(Object.keys(val));
     updatePlayerChips();
+    if(gamePhase === 'briefing') renderReadyList();
     Object.entries(val).forEach(([name, pos])=>{
       if(name === myName) return;
       const t = Date.now();
@@ -797,32 +1024,59 @@ function setupRealtime(){
       arr.push({x:pos.x, y:pos.y, t});
       if(arr.length > 8) arr.shift();
     });
+    if(gamePhase === 'briefing') maybeLaunchGame();
   });
 
   db.ref(`rooms/${roomCode}/state`).on('value', (snap)=>{
     const val = snap.val();
-    if(val){
-      roomRowState.bridgesOn = val.bridgesOn || {};
-      roomRowState.gatesOpen = val.gatesOpen || {};
-      roomRowState.crumbleStart = val.crumbleStart || {};
-      const lvl = typeof val.level === 'number' ? val.level : 0;
-      if(lvl !== currentLevel){
-        currentLevel = Math.max(0, Math.min(LEVELS.length-1, lvl));
-        advancing = false;
-        launchArmed = {};
-        localPadTouch = {};
-        riddenMpIndex = null;
-        riddenMpPrevRect = null;
-        lastFrameTime = null;
-        pendingLaunchFire = {};
-        lastSeenLaunchTs = {};
-        const sp = startPos();
-        myPlayer.x = sp.x; myPlayer.y = sp.y; myPlayer.vx = 0; myPlayer.vy = 0;
-        updateStageIndicator();
-        if(canvas){ canvas.width = L().width; canvas.height = L().height; }
-        const banner = document.getElementById('clearBanner');
-        if(banner) banner.innerHTML = '';
+    if(!val) return;
+    roomRowState.bridgesOn = val.bridgesOn || {};
+    roomRowState.gatesOpen = val.gatesOpen || {};
+    roomRowState.crumbleStart = val.crumbleStart || {};
+    roomRowState.ready = val.ready || {};
+    roomRowState.gameStarted = !!val.gameStarted;
+    roomRowState.startTime = val.startTime || null;
+    roomRowState.dead = !!val.dead;
+    roomRowState.deathReason = val.deathReason || null;
+    roomRowState.won = !!val.won;
+
+    let newPhase = 'briefing';
+    if(roomRowState.dead) newPhase = 'dead';
+    else if(roomRowState.won) newPhase = 'won';
+    else if(roomRowState.gameStarted) newPhase = 'playing';
+
+    if(newPhase !== gamePhase){
+      const prevPhase = gamePhase;
+      gamePhase = newPhase;
+      if(prevPhase === 'playing' && rafId){ cancelAnimationFrame(rafId); rafId = null; }
+
+      if(newPhase === 'briefing'){
+        oxygenTriggerSent = false;
+        removeOverlay();
+        renderBriefing();
+      } else if(newPhase === 'playing'){
+        removeOverlay();
+        oxygenTriggerSent = false;
+        const lvl = typeof val.level === 'number' ? val.level : 0;
+        renderShell();
+        applyLevelReset(lvl);
+        updatePlayerChips();
+        gameLoop();
+      } else if(newPhase === 'dead'){
+        renderDeathOverlay();
+      } else if(newPhase === 'won'){
+        renderWinOverlay();
       }
+      return;
+    }
+
+    // no phase change — handle in-phase updates
+    if(gamePhase === 'briefing'){
+      renderReadyList();
+      maybeLaunchGame();
+    } else if(gamePhase === 'playing'){
+      const lvl = typeof val.level === 'number' ? val.level : 0;
+      if(lvl !== currentLevel) applyLevelReset(lvl);
     }
   });
 
@@ -838,11 +1092,10 @@ function setupRealtime(){
   });
 
   db.ref('.info/connected').on('value', (snap)=>{
-    if(snap.val() === true){
-      if(pill){ pill.textContent = '연결됨'; pill.className = 'status-pill connected'; }
-    } else {
-      if(pill){ pill.textContent = '연결 중...'; pill.className = 'status-pill pending'; }
-    }
+    const pill = document.getElementById('statusPill');
+    if(!pill) return;
+    if(snap.val() === true){ pill.textContent = '연결됨'; pill.className = 'status-pill connected'; }
+    else { pill.textContent = '연결 중...'; pill.className = 'status-pill pending'; }
   });
 
   posSendTimer = setInterval(()=>{
@@ -852,18 +1105,18 @@ function setupRealtime(){
 
 function setupKeys(){
   window.addEventListener('keydown', e=>{
+    if(e.code === 'KeyR' && gamePhase === 'briefing'){ toggleMyReady(); return; }
     if(['ArrowLeft','ArrowRight','ArrowUp','Space','KeyA','KeyD','KeyW'].includes(e.code)) e.preventDefault();
     keys.add(e.code);
   });
   window.addEventListener('keyup', e=>{ keys.delete(e.code); });
 }
 
-function startGame(){
-  renderShell();
-  updateStageIndicator();
+function initGame(){
+  gamePhase = 'briefing';
+  renderBriefing();
   setupKeys();
   setupRealtime();
-  gameLoop();
 }
 
 renderLogin();
