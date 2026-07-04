@@ -630,15 +630,22 @@ function gameLoop(){
   const bridgeStates = {};
   lvl.bridges.forEach(b=>{ bridgeStates[b.id] = isBridgeActive(b, myPlayer, preview); });
 
-  // if we were standing on a moving platform last frame, carry the player along with it
+  // Vertical elevators auto-carry the rider; horizontal moving platforms do NOT —
+  // the player has to walk to keep up with those.
   if(riddenMpIndex !== null && lvl.movingPlatforms[riddenMpIndex]){
-    const newRect = getMovingPlatformRect(lvl.movingPlatforms[riddenMpIndex], t);
-    if(riddenMpPrevRect){
-      myPlayer.x += newRect.x - riddenMpPrevRect.x;
-      myPlayer.y += newRect.y - riddenMpPrevRect.y;
+    const mp = lvl.movingPlatforms[riddenMpIndex];
+    const isVertical = mp.x0 === mp.x1;
+    if(isVertical){
+      const newRect = getMovingPlatformRect(mp, t);
+      if(riddenMpPrevRect){
+        myPlayer.x += newRect.x - riddenMpPrevRect.x;
+        myPlayer.y += newRect.y - riddenMpPrevRect.y;
+      }
+      riddenMpPrevRect = newRect;
+      myPlayer.onGround = true; // guarantee jump works reliably while riding
+    } else {
+      riddenMpPrevRect = null;
     }
-    riddenMpPrevRect = newRect;
-    myPlayer.onGround = true; // guarantee jump works reliably while riding
   } else {
     riddenMpPrevRect = null;
   }
