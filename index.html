@@ -248,16 +248,27 @@ function drawLevel(remotePositions){
   drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName);
 }
 
+const RENDER_DELAY = 100; // ms — slight buffer so we always interpolate between real data points
+
 function getInterpolatedRemotePositions(){
-  const now = Date.now();
+  const renderTime = Date.now() - RENDER_DELAY;
   const out = {};
-  Object.entries(lastRemoteSnapshots).forEach(([name, snaps])=>{
-    if(snaps.length === 0) return;
-    if(snaps.length === 1){ out[name] = snaps[0]; return; }
-    const [a,b] = snaps;
-    const span = b.t - a.t || 1;
-    let t = (now - b.t)/span + 1;
-    t = Math.max(0, Math.min(1.6, t));
+  Object.entries(lastRemoteSnapshots).forEach(([name, buf])=>{
+    if(buf.length === 0) return;
+    if(buf.length === 1){ out[name] = {x:buf[0].x, y:buf[0].y}; return; }
+
+    // find the two buffered snapshots surrounding renderTime
+    let a = buf[0], b = buf[buf.length-1];
+    for(let i=0;i<buf.length-1;i++){
+      if(buf[i].t <= renderTime && buf[i+1].t >= renderTime){
+        a = buf[i]; b = buf[i+1]; break;
+      }
+    }
+    if(renderTime <= buf[0].t){ out[name] = {x:buf[0].x, y:buf[0].y}; return; }
+    if(renderTime >= buf[buf.length-1].t){ const last = buf[buf.length-1]; out[name] = {x:last.x, y:last.y}; return; }
+
+    const span = (b.t - a.t) || 1;
+    const t = Math.max(0, Math.min(1, (renderTime - a.t) / span));
     out[name] = { x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t };
   });
   return out;
@@ -285,7 +296,13 @@ function gameLoop(){
     db.ref(`rooms/${roomCode}/state/gateOpen`).set(true);
   }
 
-  const cleared = roomRowState.gateOpen && myPlayer.x > GATE_X - 4;
+  const otherNames = Array.from(onlineNames).filter(n => n !== myName);
+  const iAmPastGate = myPlayer.x > GATE_X - 4;
+  const othersPastGate = otherNames.length === 0 || otherNames.every(name=>{
+    const pos = remote[name];
+    return pos && pos.x > GATE_X - 4;
+  });
+  const cleared = roomRowState.gateOpen && iAmPastGate && othersPastGate;
   const banner = document.getElementById('clearBanner');
   if(banner) banner.innerHTML = cleared ? `<div class="clear-banner">CLEAR!<br><span style="font-size:12px;color:#8a98a8;">함께 탈출했다</span></div>` : '';
 
@@ -310,7 +327,7 @@ function setupRealtime(){
       if(!lastRemoteSnapshots[name]) lastRemoteSnapshots[name] = [];
       const arr = lastRemoteSnapshots[name];
       arr.push({x:pos.x, y:pos.y, t});
-      if(arr.length > 2) arr.shift();
+      if(arr.length > 6) arr.shift();
     });
   });
 
@@ -332,7 +349,7 @@ function setupRealtime(){
 
   posSendTimer = setInterval(()=>{
     myRef.set({ x: Math.round(myPlayer.x), y: Math.round(myPlayer.y), ts: Date.now() });
-  }, 80);
+  }, 60);
 }
 
 function setupKeys(){
