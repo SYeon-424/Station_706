@@ -161,6 +161,7 @@ function getActivePlatforms(){
     {x:620,y:320,w:44,h:10},
   ];
   if(roomRowState.switchOn) solids.push(BRIDGE);
+  if(!roomRowState.gateOpen) solids.push({x:GATE_X, y:0, w:12, h:340}); // closed gate blocks passage
   return solids;
 }
 
@@ -248,7 +249,7 @@ function drawLevel(remotePositions){
   drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName);
 }
 
-const RENDER_DELAY = 100; // ms — slight buffer so we always interpolate between real data points
+const RENDER_DELAY = 70; // ms — shorter buffer for snappier sync
 
 function getInterpolatedRemotePositions(){
   const renderTime = Date.now() - RENDER_DELAY;
@@ -327,7 +328,7 @@ function setupRealtime(){
       if(!lastRemoteSnapshots[name]) lastRemoteSnapshots[name] = [];
       const arr = lastRemoteSnapshots[name];
       arr.push({x:pos.x, y:pos.y, t});
-      if(arr.length > 6) arr.shift();
+      if(arr.length > 8) arr.shift();
     });
   });
 
@@ -349,7 +350,7 @@ function setupRealtime(){
 
   posSendTimer = setInterval(()=>{
     myRef.set({ x: Math.round(myPlayer.x), y: Math.round(myPlayer.y), ts: Date.now() });
-  }, 60);
+  }, 40);
 }
 
 function setupKeys(){
