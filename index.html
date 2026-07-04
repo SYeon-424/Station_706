@@ -265,7 +265,7 @@ const LEVELS = [
       { id:'h1', rect:{x:560,y:270,w:26,h:100}, period:1600, activeFraction:0.4 }
     ],
     launchPads: [
-      { id:'lp1', padA:{x:320,y:470,w:34,h:10}, padB:{x:360,y:470,w:34,h:10}, boost:-14 }
+      { id:'lp1', padA:{x:320,y:470,w:34,h:10}, padB:{x:360,y:470,w:34,h:10}, boost:-21 }
     ],
     gates: [
       { id:'g_final', plateA:{x:700,y:330,w:34,h:10}, plateB:{x:800,y:330,w:34,h:10}, gateX:950 }
@@ -491,10 +491,15 @@ function renderShell(){
     if(!n || n < 1 || n > LEVELS.length) return;
     const pw = prompt("디버그 비밀번호를 입력하세요");
     if(pw !== "4444"){ alert("비밀번호가 틀렸습니다."); return; }
+    const snap = await db.ref(`rooms/${roomCode}/state`).once('value');
+    const current = snap.val() || {};
     const base = defaultRoomState();
     base.level = n-1;
     base.gameStarted = true;
-    base.startTime = Date.now();
+    // keep the original start time (or now, if the timer never actually started yet)
+    // so jumping stages for debugging never grants extra oxygen time
+    base.startTime = current.startTime || Date.now();
+    base.ready = current.ready || {};
     await db.ref(`rooms/${roomCode}/state`).set(base);
   };
 }
@@ -959,7 +964,7 @@ function renderDeathOverlay(){
       <div class="sf-body">
         예비 산소가 완전히 고갈되었습니다.<br>
         정거장 706 승무원의 생체 신호가 더 이상 감지되지 않습니다.<br>
-        <span class="muted">임무 실패 — 탈출하지 못한 채 사망했다.</span>
+        <span class="muted">[End 1] 임무 실패 — 사망</span>
       </div>
       <button id="retryBtn" style="width:100%;">다시 도전하기</button>
     </div>
@@ -979,7 +984,7 @@ function renderWinOverlay(){
       <div class="sf-body">
         탈출 포드가 정거장 706에서 무사히 분리되었습니다.<br>
         10개 격리 구역을 모두 통과해 승무원 전원이 생존했습니다.<br>
-        <span class="glow">정거장 706에서 성공적으로 탈출했다.</span>
+        <span class="glow">[End 2] 임무 성공 - 탈출</span>
       </div>
       <button id="retryBtn" style="width:100%;">새 임무 시작</button>
     </div>
