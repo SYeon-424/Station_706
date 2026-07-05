@@ -148,7 +148,7 @@
 </head>
 <body>
 <div id="adBanner">
-  <div id="adBannerSlot">Ad-link</div>
+  <div id="adBannerSlot">광고 자리 — 여기에 애드센스 등 광고 코드 삽입 가능</div>
 </div>
 <audio id="bgm" loop preload="auto"></audio>
 <audio id="sfxJump" preload="auto"></audio>
@@ -1124,6 +1124,26 @@ function removeOverlay(){
   if(overlay) overlay.remove();
 }
 
+  //멘트 수정하고싶은데 어케나오는지를 모르겠군
+async function shareResult(won){
+  const stageInfo = won ? '10/10 스테이지 전부 클리어' : `스테이지 ${currentLevel+1}/10에서 실패`;
+  const text = won
+    ? `정거장 706 탈출 성공! 산소가 다하기 전에 ${stageInfo}하고 무사히 빠져나왔다.`
+    : `정거장 706... 우리는 거기 남았다. (${stageInfo})`;
+  const shareData = { title: '정거장 706', text, url: location.href };
+  if(navigator.share){
+    try{ await navigator.share(shareData); }catch(e){ /* 사용자가 취소한 경우도 여기로 옴 — 무시 */ }
+  } else {
+    const fullText = `${text}\n${location.href}`;
+    try{
+      await navigator.clipboard.writeText(fullText);
+      alert('결과가 클립보드에 복사됐어요. 원하는 곳에 붙여넣기 해보세요!');
+    }catch(e){
+      prompt('아래 내용을 복사해서 공유하세요:', fullText);
+    }
+  }
+}
+
 function renderDeathOverlay(){
   let overlay = document.getElementById('sfOverlay');
   if(!overlay){ overlay = document.createElement('div'); overlay.id = 'sfOverlay'; document.body.appendChild(overlay); }
@@ -1136,10 +1156,12 @@ function renderDeathOverlay(){
         정거장 706 승무원의 생체 신호가 더 이상 감지되지 않습니다.<br>
         <span class="muted">[End 1] 임무 실패 — 사망</span>
       </div>
-      <button id="retryBtn" style="width:100%;">다시 도전하기</button>
+      <button id="shareBtnDead" style="width:100%;border-color:var(--slate);color:var(--white);">결과 공유하기</button>
+      <button id="retryBtn" style="width:100%;margin-top:8px;">다시 도전하기</button>
       <button id="leaveBtnDead" style="width:100%;margin-top:8px;border-color:var(--slate);color:var(--slate);">나가기 (코드 반납)</button>
     </div>
   `;
+  document.getElementById('shareBtnDead').onclick = ()=> shareResult(false);
   document.getElementById('retryBtn').onclick = async ()=>{
     await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
   };
@@ -1158,10 +1180,12 @@ function renderWinOverlay(){
         10개 격리 구역을 모두 통과해 승무원 전원이 생존했습니다.<br>
         <span class="glow">[End 2] 임무 성공 - 탈출</span>
       </div>
-      <button id="retryBtn" style="width:100%;">새 임무 시작</button>
+      <button id="shareBtnWon" style="width:100%;border-color:var(--green-dim);">결과 공유하기</button>
+      <button id="retryBtn" style="width:100%;margin-top:8px;">새 임무 시작</button>
       <button id="leaveBtnWon" style="width:100%;margin-top:8px;border-color:var(--slate);color:var(--slate);">나가기 (코드 반납)</button>
     </div>
   `;
+  document.getElementById('shareBtnWon').onclick = ()=> shareResult(true);
   document.getElementById('retryBtn').onclick = async ()=>{
     await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
   };
