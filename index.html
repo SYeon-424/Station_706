@@ -395,6 +395,7 @@ function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;'
 function playBgm(){
   const bgm = document.getElementById('bgm');
   if(!bgm) return;
+  bgmRealPlayRequested = true;
   bgm.currentTime = 0;
   bgm.play().catch(err=>{
     console.warn('[BGM] 재생 실패:', err && err.name, err && err.message,
@@ -402,6 +403,7 @@ function playBgm(){
   });
 }
 function stopBgm(){
+  bgmRealPlayRequested = false;
   const bgm = document.getElementById('bgm');
   if(!bgm) return;
   bgm.pause();
@@ -504,13 +506,19 @@ function renderReadyList(){
 // "둘 다 준비완료"는 나중에 비동기로(상대방 신호로) 오는 경우가 많아서 그 시점엔
 // 제스처가 아니라고 판단해 재생이 막힐 수 있음 — 그래서 R/버튼을 누르는 이 순간에
 // 미리 한 번 play()+즉시 pause()로 "잠금 해제"만 해둔다. 실제 재생은 이후 playBgm()에서.
+let bgmRealPlayRequested = false; // true once the game has actually asked to play (not just the unlock priming)
+
 function unlockBgm(){
   const bgm = document.getElementById('bgm');
   if(!bgm || bgm.dataset.unlocked) return;
   bgm.play().then(()=>{
-    bgm.pause();
-    bgm.currentTime = 0;
     bgm.dataset.unlocked = '1';
+    // if the real game-start playback already kicked in while this promise was
+    // pending, do NOT pause it — that's exactly what caused the AbortError
+    if(!bgmRealPlayRequested){
+      bgm.pause();
+      bgm.currentTime = 0;
+    }
   }).catch(()=>{ /* still locked; playBgm() will just try again later */ });
 }
 
