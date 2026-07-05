@@ -129,6 +129,7 @@
 </style>
 </head>
 <body>
+<audio id="bgm" src="BGM.mp3" loop preload="auto"></audio>
 <div id="app"></div>
 
 <script>
@@ -390,6 +391,19 @@ function hazardActive(hz, t){
 let myPlayer = { x: START_POS.x, y: START_POS.y, vx:0, vy:0, onGround:false };
 
 function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function playBgm(){
+  const bgm = document.getElementById('bgm');
+  if(!bgm) return;
+  bgm.currentTime = 0;
+  bgm.play().catch(()=>{ /* autoplay might be blocked until the next user input; harmless */ });
+}
+function stopBgm(){
+  const bgm = document.getElementById('bgm');
+  if(!bgm) return;
+  bgm.pause();
+  bgm.currentTime = 0;
+}
 
 function renderLogin(){
   const app = document.getElementById('app');
@@ -1165,6 +1179,7 @@ function setupRealtime(){
       if(newPhase === 'briefing'){
         oxygenTriggerSent = false;
         removeOverlay();
+        stopBgm();
         renderBriefing();
       } else if(newPhase === 'playing'){
         removeOverlay();
@@ -1173,10 +1188,13 @@ function setupRealtime(){
         renderShell();
         applyLevelReset(lvl);
         updatePlayerChips();
+        playBgm();
         gameLoop();
       } else if(newPhase === 'dead'){
+        stopBgm();
         renderDeathOverlay();
       } else if(newPhase === 'won'){
+        stopBgm();
         renderWinOverlay();
       }
       return;
@@ -1223,6 +1241,7 @@ function teardownRealtime(){
 
 async function leaveRoom(){
   if(!db || !roomCode){ renderLogin(); return; }
+  stopBgm();
   const leavingCode = roomCode;
   try{
     if(myPlayerRef){ await myPlayerRef.onDisconnect().cancel(); await myPlayerRef.remove(); }
