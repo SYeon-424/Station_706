@@ -130,6 +130,8 @@
 </head>
 <body>
 <audio id="bgm" loop preload="auto"></audio>
+<audio id="sfxJump" preload="auto"></audio>
+<audio id="sfxOpen" preload="auto"></audio>
 <div id="app"></div>
 
 <script>
@@ -410,6 +412,13 @@ function stopBgm(){
   bgm.currentTime = 0;
 }
 
+function playSfx(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.currentTime = 0;
+  el.play().catch(()=>{ /* e.g. blocked before first user gesture; harmless */ });
+}
+
 function renderLogin(){
   const app = document.getElementById('app');
   const configured = !FIREBASE_CONFIG.apiKey.includes("YOUR_API_KEY");
@@ -669,7 +678,7 @@ function stepPhysics(bridgeStates, t, dt){
   if(keys.has('ArrowLeft')||keys.has('KeyA')) moveX -= 1;
   if(keys.has('ArrowRight')||keys.has('KeyD')) moveX += 1;
   p.vx = moveX * MOVE_SPEED;
-  if((keys.has('Space')||keys.has('ArrowUp')||keys.has('KeyW')) && p.onGround){ p.vy = JUMP_V; p.onGround = false; }
+  if((keys.has('Space')||keys.has('ArrowUp')||keys.has('KeyW')) && p.onGround){ p.vy = JUMP_V; p.onGround = false; playSfx('sfxJump'); }
   p.vy += GRAVITY * dt;
   if(p.vy > 14) p.vy = 14;
 
@@ -1197,8 +1206,15 @@ function setupRealtime(){
   realtimeRefs.state.on('value', (snap)=>{
     const val = snap.val();
     if(!val) return;
+    const prevGatesOpen = roomRowState.gatesOpen || {};
+    const nextGatesOpen = val.gatesOpen || {};
+    if(gamePhase === 'playing'){
+      Object.keys(nextGatesOpen).forEach(gid=>{
+        if(nextGatesOpen[gid] && !prevGatesOpen[gid]) playSfx('sfxOpen');
+      });
+    }
     roomRowState.bridgesOn = val.bridgesOn || {};
-    roomRowState.gatesOpen = val.gatesOpen || {};
+    roomRowState.gatesOpen = nextGatesOpen;
     roomRowState.crumbleStart = val.crumbleStart || {};
     roomRowState.ready = val.ready || {};
     roomRowState.gameStarted = !!val.gameStarted;
@@ -1334,6 +1350,16 @@ if(bgmEl){
   bgmEl.src = 'BGM.mp3?v=' + Date.now();
   bgmEl.load();
 }
+
+[['sfxJump','jump.mp3'], ['sfxOpen','open.mp3']].forEach(([id, file])=>{
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('error', ()=>{
+    console.warn(`[SFX] ${file}를 불러오지 못했습니다. html과 같은 폴더에 있는지 확인해보세요.`);
+  });
+  el.src = file + '?v=' + Date.now();
+  el.load();
+});
 
 renderLogin();
 
