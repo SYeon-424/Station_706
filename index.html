@@ -135,16 +135,18 @@
   #adBanner{
     position:fixed; left:0; right:0; bottom:0; z-index:35;
     background:#0e131b; border-top:1px solid var(--line);
-    text-align:center; padding:8px 12px; font-size:11px; color:var(--slate);
+    text-align:center; padding:6px 12px; font-size:11px; color:var(--slate);
+    height:64px; overflow:hidden; display:flex; align-items:center; justify-content:center;
   }
   #adBanner a{ color:var(--slate); }
   @media (hover:none) and (pointer:coarse){
     #adBanner{
       bottom:auto; top:0;
       border-top:none; border-bottom:1px solid var(--line);
-      padding-top:calc(8px + env(safe-area-inset-top));
+      height:auto; min-height:56px;
+      padding-top:calc(6px + env(safe-area-inset-top));
     }
-    #app{ padding-top:calc(40px + env(safe-area-inset-top)); }
+    #app{ padding-top:calc(60px + env(safe-area-inset-top)); }
   }
 </style>
 </head>
