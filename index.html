@@ -1186,8 +1186,8 @@ function removeOverlay(){
 async function shareResult(won){
   const stageInfo = won ? '10/10 스테이지 전부 클리어' : `스테이지 ${currentLevel+1}/10에서 실패`;
   const text = won
-    ? `🚀 정거장 706 탈출 성공! 산소가 다하기 전에 ${stageInfo}하고 무사히 빠져나왔다.`
-    : `💀 정거장 706... 우리는 거기 남았다. (${stageInfo})`;
+    ? `탈출 성공! 다음에도 탈출해보고 싶어!.`
+    : `탈출 실패... 이번엔 성공할 수 있을까?`;
   const shareData = { title: '정거장 706', text, url: location.href };
   if(navigator.share){
     try{ await navigator.share(shareData); }catch(e){ /* 사용자가 취소한 경우도 여기로 옴 — 무시 */ }
@@ -1195,7 +1195,7 @@ async function shareResult(won){
     const fullText = `${text}\n${location.href}`;
     try{
       await navigator.clipboard.writeText(fullText);
-      alert('결과가 클립보드에 복사됐어요. 원하는 곳에 붙여넣기 해보세요!');
+      alert('결과가 클립보드에 복사됐어요.');
     }catch(e){
       prompt('아래 내용을 복사해서 공유하세요:', fullText);
     }
