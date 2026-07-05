@@ -52,6 +52,16 @@
     position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     background:rgba(8,11,16,0.92);border:1px solid var(--green);color:var(--green);
     padding:20px 34px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:22px;text-align:center;
+    animation: bannerPop .35s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  @keyframes bannerPop{
+    from{ opacity:0; transform:translate(-50%,-50%) scale(.7); }
+    to{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+  }
+  .fade-in{ animation: fadeInUp .32s ease both; }
+  @keyframes fadeInUp{
+    from{ opacity:0; transform:translateY(8px); }
+    to{ opacity:1; transform:translateY(0); }
   }
   .canvas-wrap{position:relative;}
   .status-pill{font-size:11px;padding:3px 9px;border-radius:10px;border:1px solid var(--line);}
@@ -63,6 +73,11 @@
   .oxy-label{font-size:10px;color:var(--slate);letter-spacing:1px;}
   .oxy-bar-outer{width:120px;height:12px;border:1px solid var(--line);border-radius:3px;background:#0a0f16;overflow:hidden;position:relative;}
   .oxy-bar-inner{height:100%;width:100%;background:var(--green);box-shadow:0 0 6px rgba(74,222,128,0.6);transition:width 0.3s linear, background-color 0.3s linear;}
+  .oxy-bar-inner.critical{ animation: oxyPulse .8s ease-in-out infinite; }
+  @keyframes oxyPulse{
+    0%,100%{ box-shadow:0 0 6px rgba(227,72,72,0.6); opacity:1; }
+    50%{ box-shadow:0 0 16px rgba(227,72,72,0.95); opacity:.65; }
+  }
   .oxy-time{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--green);min-width:38px;}
 
   .sf-overlay{
@@ -81,7 +96,12 @@
   .sf-hr{border:none;border-top:1px dashed var(--line);margin:14px 0;}
   .ready-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; font-size:13px;}
   .ready-tag{font-size:11px; padding:3px 10px; border-radius:10px; border:1px solid var(--line);}
-  .ready-tag.ready{color:var(--green); border-color:var(--green-dim);}
+  .ready-tag.ready{color:var(--green); border-color:var(--green-dim); animation: readyPop .4s ease both;}
+  @keyframes readyPop{
+    0%{ transform:scale(0.6); opacity:0; }
+    60%{ transform:scale(1.15); opacity:1; }
+    100%{ transform:scale(1); }
+  }
   .ready-tag.wait{color:var(--amber); border-color:var(--amber);}
   .r-key{display:inline-block; border:1px solid var(--green-dim); border-radius:4px; padding:2px 10px; margin:0 3px; color:var(--green); font-family:'Share Tech Mono',monospace;}
   .blink{animation:blinkAnim 1.2s steps(2,start) infinite;}
@@ -394,6 +414,7 @@ let lastSeenLaunchTs = {};
 let riddenMpIndex = null;
 let riddenMpPrevRect = null;
 let lastLandedMpIndex = null;
+let landingSquash = 0; // 0~1, decays each frame; used for a brief squash/stretch on hard landings
 let particles = [];
 function L(){ return LEVELS[currentLevel]; }
 
@@ -458,7 +479,7 @@ function renderLogin(){
   const app = document.getElementById('app');
   const configured = !FIREBASE_CONFIG.apiKey.includes("YOUR_API_KEY");
   app.innerHTML = `
-    <div class="center">
+    <div class="center fade-in">
       <h1 class="glow" style="font-size:28px;">정거장 706</h1>
       <div class="muted" style="margin-bottom:24px;">Stage 1~10</div>
       ${!configured ? `<div class="card" style="max-width:380px;border-color:var(--amber);color:var(--amber);">FIREBASE_CONFIG가 아직 설정되지 않았어요. 코드 상단 값을 콘솔에서 복사한 값으로 바꿔주세요.</div>` : ''}
@@ -495,7 +516,7 @@ function renderLogin(){
 function renderBriefing(){
   const app = document.getElementById('app');
   app.innerHTML = `
-    <div class="center">
+    <div class="center fade-in">
       <div class="sf-panel" style="max-width:520px;">
         <div class="sf-panel-title ok">// 비상 방송: 정거장 706 //</div>
         <div class="sf-body">
@@ -591,7 +612,7 @@ function maybeLaunchGame(){
 function renderShell(){
   const app = document.getElementById('app');
   app.innerHTML = `
-    <div class="top-bar">
+    <div class="top-bar fade-in">
       <div class="station-title">
         <div><h2 class="glow" style="font-size:18px;">정거장 706</h2><div class="small">ROOM ${escapeHtml(roomCode)}</div></div>
         <div class="oxy-wrap">
@@ -607,7 +628,7 @@ function renderShell(){
         <a class="link-reset" id="leaveLinkShell" style="white-space:nowrap;">나가기</a>
       </div>
     </div>
-    <div class="canvas-wrap">
+    <div class="canvas-wrap fade-in">
       <canvas id="gameCanvas" width="${L().width}" height="${L().height}"></canvas>
       <div id="clearBanner"></div>
     </div>
@@ -730,11 +751,15 @@ function stepPhysics(bridgeStates, t, dt){
   }
   p.y += p.vy * dt;
   b = box();
+  const wasOnGround = p.onGround;
   p.onGround = false;
   lastLandedMpIndex = null;
   for(const s of solids){
     if(rectsOverlap(b,s)){
-      if(p.vy > 0){ p.y = s.y; p.onGround = true; p.vy = 0; if(s.__mpIndex !== undefined) lastLandedMpIndex = s.__mpIndex; }
+      if(p.vy > 0){
+        if(!wasOnGround && p.vy > 3){ landingSquash = Math.min(1, p.vy / 14); }
+        p.y = s.y; p.onGround = true; p.vy = 0; if(s.__mpIndex !== undefined) lastLandedMpIndex = s.__mpIndex;
+      }
       else if(p.vy < 0){ p.y = s.y + s.h + PH; p.vy = 0; }
       b = box();
     }
@@ -793,12 +818,15 @@ function updateAndDrawParticles(dt){
   ctx.imageSmoothingEnabled = wasSmoothing;
 }
 
-function drawPlayer(x,y,color,label){
+function drawPlayer(x,y,color,label,squash){
+  squash = squash || 0;
+  const w = PW * (1 + squash * 0.35);
+  const h = PH * (1 - squash * 0.28);
   ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
-  ctx.fillRect(x-PW/2, y-PH, PW, PH);
+  ctx.fillRect(x-w/2, y-h, w, h);
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#050810';
-  ctx.fillRect(x-6, y-PH+8, 4,4); ctx.fillRect(x+2, y-PH+8, 4,4);
+  ctx.fillRect(x-6, y-h+8, 4,4); ctx.fillRect(x+2, y-h+8, 4,4);
   ctx.fillStyle = '#c7d1d9'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
   ctx.fillText(label, x, y-PH-6); ctx.textAlign = 'left';
 }
@@ -891,7 +919,9 @@ function drawLevel(remotePositions, bridgeStates, t, dt){
   updateAndDrawParticles(dt || 1);
 
   Object.entries(remotePositions).forEach(([name,pos])=>drawPlayer(pos.x, pos.y, '#f5a524', name));
-  drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName);
+  drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName, landingSquash);
+  landingSquash *= Math.pow(0.8, dt || 1); // decay the squash back to normal over a few frames
+  if(landingSquash < 0.02) landingSquash = 0;
 }
 
 const RENDER_DELAY = 55;
@@ -940,6 +970,7 @@ function updateOxygenBar(remainingMs){
   if(frac <= 0.2) color = 'var(--red)';
   else if(frac <= 0.45) color = 'var(--amber)';
   inner.style.background = color;
+  inner.classList.toggle('critical', frac <= 0.2);
   const totalSec = Math.max(0, Math.ceil(remainingMs/1000));
   const mm = Math.floor(totalSec/60).toString().padStart(2,'0');
   const ss = (totalSec%60).toString().padStart(2,'0');
@@ -1162,7 +1193,7 @@ function renderDeathOverlay(){
   if(!overlay){ overlay = document.createElement('div'); overlay.id = 'sfOverlay'; document.body.appendChild(overlay); }
   overlay.className = 'sf-overlay';
   overlay.innerHTML = `
-    <div class="sf-panel danger">
+    <div class="sf-panel danger fade-in">
       <div class="sf-panel-title danger">// 생명유지 시스템 정지 //</div>
       <div class="sf-body">
         예비 산소가 완전히 고갈되었습니다.<br>
@@ -1186,7 +1217,7 @@ function renderWinOverlay(){
   if(!overlay){ overlay = document.createElement('div'); overlay.id = 'sfOverlay'; document.body.appendChild(overlay); }
   overlay.className = 'sf-overlay';
   overlay.innerHTML = `
-    <div class="sf-panel">
+    <div class="sf-panel fade-in">
       <div class="sf-panel-title ok">// 탈출 성공 //</div>
       <div class="sf-body">
         탈출 포드가 정거장 706에서 무사히 분리되었습니다.<br>
@@ -1210,6 +1241,7 @@ function applyLevelReset(lvl){
   advancing = false;
   launchArmed = {};
   localPadTouch = {};
+  landingSquash = 0;
   riddenMpIndex = null;
   riddenMpPrevRect = null;
   lastFrameTime = null;
