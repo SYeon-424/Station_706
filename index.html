@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3210143044779228"
+     crossorigin="anonymous"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
 <title>정거장 706</title>
@@ -148,7 +150,17 @@
 </head>
 <body>
 <div id="adBanner">
-  <div id="adBannerSlot">Ad-Link</div>
+  <div id="adBannerSlot">
+    <ins class="adsbygoogle"
+         style="display:block"
+         data-ad-client="ca-pub-3210143044779228"
+         data-ad-slot="3036289071"
+         data-ad-format="auto"
+         data-full-width-responsive="true"></ins>
+    <script>
+      (adsbygoogle = window.adsbygoogle || []).push({});
+    </script>
+  </div>
 </div>
 <audio id="bgm" loop preload="auto"></audio>
 <audio id="sfxJump" preload="auto"></audio>
@@ -1124,12 +1136,11 @@ function removeOverlay(){
   if(overlay) overlay.remove();
 }
 
-  //멘트 수정하고싶은데 어케나오는지를 모르겠군
 async function shareResult(won){
   const stageInfo = won ? '10/10 스테이지 전부 클리어' : `스테이지 ${currentLevel+1}/10에서 실패`;
   const text = won
-    ? `정거장 706 탈출 성공! 산소가 다하기 전에 ${stageInfo}하고 무사히 빠져나왔다.`
-    : `정거장 706... 우리는 거기 남았다. (${stageInfo})`;
+    ? `🚀 정거장 706 탈출 성공! 산소가 다하기 전에 ${stageInfo}하고 무사히 빠져나왔다.`
+    : `💀 정거장 706... 우리는 거기 남았다. (${stageInfo})`;
   const shareData = { title: '정거장 706', text, url: location.href };
   if(navigator.share){
     try{ await navigator.share(shareData); }catch(e){ /* 사용자가 취소한 경우도 여기로 옴 — 무시 */ }
