@@ -144,6 +144,9 @@
     .status-pill{ font-size:10px; }
   }
 
+  /* 광고 배너 자리 — 실제 수익화하려면 애드센스 등에서 발급받은 스크립트 코드를
+     #adBannerSlot 안에 넣으면 됩니다. 데스크탑은 하단 고정, 모바일은 하단 조작
+     버튼과 겹치므로 상단으로 옮기고 그만큼 본문을 아래로 밀어냅니다. */
   #adBanner{
     position:fixed; left:0; right:0; bottom:0; z-index:35;
     background:#0e131b; border-top:1px solid var(--line);
@@ -406,7 +409,7 @@ let lastSeenLaunchTs = {};
 let riddenMpIndex = null;
 let riddenMpPrevRect = null;
 let lastLandedMpIndex = null;
-let landingSquash = 0;
+let landingSquash = 0; // 0~1, decays each frame; used for a brief squash/stretch on hard landings
 let particles = [];
 function L(){ return LEVELS[currentLevel]; }
 
@@ -558,13 +561,20 @@ function renderReadyList(){
     `;
   }).join('');
 }
-let bgmRealPlayRequested = false; 
+
+// browsers only allow audio.play() reliably inside a direct user gesture.
+// "둘 다 준비완료"는 나중에 비동기로(상대방 신호로) 오는 경우가 많아서 그 시점엔
+// 제스처가 아니라고 판단해 재생이 막힐 수 있음 — 그래서 R/버튼을 누르는 이 순간에
+// 미리 한 번 play()+즉시 pause()로 "잠금 해제"만 해둔다. 실제 재생은 이후 playBgm()에서.
+let bgmRealPlayRequested = false; // true once the game has actually asked to play (not just the unlock priming)
 
 function unlockBgm(){
   const bgm = document.getElementById('bgm');
   if(!bgm || bgm.dataset.unlocked) return;
   bgm.play().then(()=>{
     bgm.dataset.unlocked = '1';
+    // if the real game-start playback already kicked in while this promise was
+    // pending, do NOT pause it — that's exactly what caused the AbortError
     if(!bgmRealPlayRequested){
       bgm.pause();
       bgm.currentTime = 0;
@@ -768,10 +778,10 @@ function isOnPad(pos, rect){
   return pos.x > rect.x && pos.x < rect.x+rect.w && pos.y >= rect.y-5 && pos.y <= rect.y+5;
 }
 
-const PIXEL_SIZES = [3, 4, 5, 6];
+const PIXEL_SIZES = [3, 4, 5, 6]; // discrete sizes so trail reads as blocky pixels, not smooth dots
 function spawnTrailParticle(x, y, colorHex){
   if(particles.length > 220) particles.splice(0, particles.length - 220);
-  const grid = 2;
+  const grid = 2; // snap to a small grid for a chunkier, less "smooth" look
   particles.push({
     x: Math.round((x + (Math.random()-0.5)*8) / grid) * grid,
     y: Math.round((y - 2 + (Math.random()-0.5)*5) / grid) * grid,
@@ -804,13 +814,14 @@ function spawnLandingBurst(x, y, colorHex, intensity){
 }
 function updateAndDrawParticles(dt){
   const wasSmoothing = ctx.imageSmoothingEnabled;
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = false; // keep the squares crisp/blocky, no anti-aliasing blur
   for(let i = particles.length - 1; i >= 0; i--){
     const p = particles[i];
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     p.life -= p.decay * dt;
     if(p.life <= 0){ particles.splice(i, 1); continue; }
+    // shrink in whole-pixel steps instead of smoothly, so it still reads as "pixels" while fading
     const steppedLife = Math.ceil(p.life * 4) / 4;
     const s = Math.max(1, Math.round(p.size * steppedLife));
     ctx.globalAlpha = Math.max(0, p.life) * 0.7;
@@ -1244,6 +1255,9 @@ function renderWinOverlay(){
       <button id="shareBtnWon" style="width:100%;border-color:var(--green-dim);">결과 공유하기</button>
       <button id="retryBtn" style="width:100%;margin-top:8px;">새 임무 시작</button>
       <button id="leaveBtnWon" style="width:100%;margin-top:8px;border-color:var(--slate);color:var(--slate);">나가기 (코드 반납)</button>
+      <div style="text-align:center;margin-top:14px;">
+        <a href="station_605.html" class="link-reset" style="font-size:11px;">→ 다음 이야기: 정거장 605</a>
+      </div>
     </div>
   `;
   document.getElementById('shareBtnWon').onclick = ()=> shareResult(true);
@@ -1273,6 +1287,10 @@ function applyLevelReset(lvl){
   if(banner) banner.innerHTML = '';
 }
 
+// If I'm the only one left in the room, arrange for the WHOLE room to be wiped
+// the moment I disconnect (even by just closing the tab, not clicking "나가기").
+// If someone else is around, only my own presence entry should disappear when I go.
+// Re-evaluated every time the player list changes, on every connected client.
 function updatePresenceCleanupStrategy(){
   if(!db || !roomCode || !myPlayerRef) return;
   if(onlineNames.size <= 1){
@@ -1449,6 +1467,8 @@ if(bgmEl){
   bgmEl.addEventListener('error', ()=>{
     console.warn('[BGM] BGM.mp3를 불러오지 못했습니다. 파일이 이 html과 같은 폴더에 있는지, 파일명 대소문자가 정확한지 확인해보세요.');
   });
+  // cache-bust so a replaced BGM.mp3 is always fetched fresh instead of
+  // reusing a stale (previously-broken) cached copy from the browser/CDN
   bgmEl.src = 'BGM.mp3?v=' + Date.now();
   bgmEl.load();
 }
