@@ -96,12 +96,7 @@
   .sf-hr{border:none;border-top:1px dashed var(--line);margin:14px 0;}
   .ready-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; font-size:13px;}
   .ready-tag{font-size:11px; padding:3px 10px; border-radius:10px; border:1px solid var(--line);}
-  .ready-tag.ready{color:var(--green); border-color:var(--green-dim); animation: readyPop .4s ease both;}
-  @keyframes readyPop{
-    0%{ transform:scale(0.6); opacity:0; }
-    60%{ transform:scale(1.15); opacity:1; }
-    100%{ transform:scale(1); }
-  }
+  .ready-tag.ready{color:var(--green); border-color:var(--green-dim);}
   .ready-tag.wait{color:var(--amber); border-color:var(--amber);}
   .r-key{display:inline-block; border:1px solid var(--green-dim); border-radius:4px; padding:2px 10px; margin:0 3px; color:var(--green); font-family:'Share Tech Mono',monospace;}
   .blink{animation:blinkAnim 1.2s steps(2,start) infinite;}
@@ -803,14 +798,14 @@ function spawnLandingBurst(x, y, colorHex, intensity){
   const count = 5 + Math.round(intensity * 5);
   for(let i = 0; i < count; i++){
     const dir = i % 2 === 0 ? 1 : -1;
-    const spread = 0.5 + Math.random();
+    const spread = 0.3 + Math.random()*0.5;
     particles.push({
-      x: x + dir * (3 + Math.random()*4),
+      x: x + dir * (2 + Math.random()*2),
       y: y - 1,
-      vx: dir * spread * (1.4 + intensity * 1.6),
-      vy: -0.4 - Math.random() * 0.6 * intensity,
+      vx: dir * spread * (0.5 + intensity * 0.6),
+      vy: -0.15 - Math.random() * 0.25 * intensity,
       life: 1,
-      decay: 0.032 + Math.random()*0.02,
+      decay: 0.06 + Math.random()*0.03,
       size: PIXEL_SIZES[Math.floor(Math.random()*PIXEL_SIZES.length)],
       color: colorHex
     });
