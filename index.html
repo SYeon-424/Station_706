@@ -129,7 +129,7 @@
 </style>
 </head>
 <body>
-<audio id="bgm" src="BGM.mp3" loop preload="auto"></audio>
+<audio id="bgm" loop preload="auto"></audio>
 <div id="app"></div>
 
 <script>
@@ -1321,6 +1321,10 @@ if(bgmEl){
   bgmEl.addEventListener('error', ()=>{
     console.warn('[BGM] BGM.mp3를 불러오지 못했습니다. 파일이 이 html과 같은 폴더에 있는지, 파일명 대소문자가 정확한지 확인해보세요.');
   });
+  // cache-bust so a replaced BGM.mp3 is always fetched fresh instead of
+  // reusing a stale (previously-broken) cached copy from the browser/CDN
+  bgmEl.src = 'BGM.mp3?v=' + Date.now();
+  bgmEl.load();
 }
 
 renderLogin();
