@@ -44,7 +44,7 @@
   .dot{width:8px;height:8px;border-radius:50%;}
   .small{font-size:12px;color:var(--slate);}
   a.link-reset{color:var(--slate);text-decoration:underline;cursor:pointer;font-size:12px;}
-  canvas{width:100%;display:block;background:#060911;border-radius:6px;border:1px solid var(--line);}
+  canvas{display:block;margin:0 auto;max-width:100%;max-height:min(66vh, 620px);width:auto;height:auto;background:#060911;border-radius:6px;border:1px solid var(--line);}
   .controls-hint{margin-top:10px;font-size:12px;color:var(--slate);text-align:center;}
   .clear-banner{
     position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
@@ -126,9 +126,30 @@
     .player-chip{ font-size:11px; padding:3px 8px; }
     .status-pill{ font-size:10px; }
   }
+
+  /* 광고 배너 자리 — 실제 수익화하려면 애드센스 등에서 발급받은 스크립트 코드를
+     #adBannerSlot 안에 넣으면 됩니다. 데스크탑은 하단 고정, 모바일은 하단 조작
+     버튼과 겹치므로 상단으로 옮기고 그만큼 본문을 아래로 밀어냅니다. */
+  #adBanner{
+    position:fixed; left:0; right:0; bottom:0; z-index:35;
+    background:#0e131b; border-top:1px solid var(--line);
+    text-align:center; padding:8px 12px; font-size:11px; color:var(--slate);
+  }
+  #adBanner a{ color:var(--slate); }
+  @media (hover:none) and (pointer:coarse){
+    #adBanner{
+      bottom:auto; top:0;
+      border-top:none; border-bottom:1px solid var(--line);
+      padding-top:calc(8px + env(safe-area-inset-top));
+    }
+    #app{ padding-top:calc(40px + env(safe-area-inset-top)); }
+  }
 </style>
 </head>
 <body>
+<div id="adBanner">
+  <div id="adBannerSlot">Ad-link</div>
+</div>
 <audio id="bgm" loop preload="auto"></audio>
 <audio id="sfxJump" preload="auto"></audio>
 <audio id="sfxOpen" preload="auto"></audio>
