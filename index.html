@@ -1131,6 +1131,20 @@ function applyLevelReset(lvl){
   if(banner) banner.innerHTML = '';
 }
 
+// If I'm the only one left in the room, arrange for the WHOLE room to be wiped
+// the moment I disconnect (even by just closing the tab, not clicking "나가기").
+// If someone else is around, only my own presence entry should disappear when I go.
+// Re-evaluated every time the player list changes, on every connected client.
+function updatePresenceCleanupStrategy(){
+  if(!db || !roomCode || !myPlayerRef) return;
+  if(onlineNames.size <= 1){
+    db.ref(`rooms/${roomCode}`).onDisconnect().remove();
+  } else {
+    db.ref(`rooms/${roomCode}`).onDisconnect().cancel();
+    myPlayerRef.onDisconnect().remove();
+  }
+}
+
 function setupRealtime(){
   myPlayerRef = db.ref(`rooms/${roomCode}/players/${myName}`);
   myPlayerRef.onDisconnect().remove();
@@ -1150,6 +1164,7 @@ function setupRealtime(){
       if(arr.length > 8) arr.shift();
     });
     if(gamePhase === 'briefing') maybeLaunchGame();
+    updatePresenceCleanupStrategy();
   });
 
   realtimeRefs.state = db.ref(`rooms/${roomCode}/state`);
@@ -1244,6 +1259,7 @@ async function leaveRoom(){
   stopBgm();
   const leavingCode = roomCode;
   try{
+    await db.ref(`rooms/${leavingCode}`).onDisconnect().cancel();
     if(myPlayerRef){ await myPlayerRef.onDisconnect().cancel(); await myPlayerRef.remove(); }
   }catch(e){ console.error(e); }
   try{
