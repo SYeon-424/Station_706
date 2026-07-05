@@ -757,7 +757,7 @@ function stepPhysics(bridgeStates, t, dt){
   for(const s of solids){
     if(rectsOverlap(b,s)){
       if(p.vy > 0){
-        if(!wasOnGround && p.vy > 3){ landingSquash = Math.min(1, p.vy / 14); }
+        if(!wasOnGround && p.vy > 3){ landingSquash = Math.min(1, p.vy / 14); spawnLandingBurst(p.x, s.y, '#4ade80', landingSquash); }
         p.y = s.y; p.onGround = true; p.vy = 0; if(s.__mpIndex !== undefined) lastLandedMpIndex = s.__mpIndex;
       }
       else if(p.vy < 0){ p.y = s.y + s.h + PH; p.vy = 0; }
@@ -797,6 +797,25 @@ function spawnTrailParticle(x, y, colorHex){
     size: PIXEL_SIZES[Math.floor(Math.random()*PIXEL_SIZES.length)],
     color: colorHex
   });
+}
+function spawnLandingBurst(x, y, colorHex, intensity){
+  intensity = Math.max(0.15, Math.min(1, intensity));
+  const count = 5 + Math.round(intensity * 5);
+  for(let i = 0; i < count; i++){
+    const dir = i % 2 === 0 ? 1 : -1;
+    const spread = 0.5 + Math.random();
+    particles.push({
+      x: x + dir * (3 + Math.random()*4),
+      y: y - 1,
+      vx: dir * spread * (1.4 + intensity * 1.6),
+      vy: -0.4 - Math.random() * 0.6 * intensity,
+      life: 1,
+      decay: 0.032 + Math.random()*0.02,
+      size: PIXEL_SIZES[Math.floor(Math.random()*PIXEL_SIZES.length)],
+      color: colorHex
+    });
+  }
+  if(particles.length > 220) particles.splice(0, particles.length - 220);
 }
 function updateAndDrawParticles(dt){
   const wasSmoothing = ctx.imageSmoothingEnabled;
