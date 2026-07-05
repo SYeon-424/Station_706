@@ -674,33 +674,39 @@ function isOnPad(pos, rect){
   return pos.x > rect.x && pos.x < rect.x+rect.w && pos.y >= rect.y-5 && pos.y <= rect.y+5;
 }
 
+const PIXEL_SIZES = [3, 4, 5, 6]; // discrete sizes so trail reads as blocky pixels, not smooth dots
 function spawnTrailParticle(x, y, colorHex){
   if(particles.length > 220) particles.splice(0, particles.length - 220);
+  const grid = 2; // snap to a small grid for a chunkier, less "smooth" look
   particles.push({
-    x: x + (Math.random()-0.5)*6,
-    y: y - 2 + (Math.random()-0.5)*4,
+    x: Math.round((x + (Math.random()-0.5)*8) / grid) * grid,
+    y: Math.round((y - 2 + (Math.random()-0.5)*5) / grid) * grid,
     vx: (Math.random()-0.5)*0.5,
     vy: -0.12 - Math.random()*0.18,
     life: 1,
-    decay: 0.025 + Math.random()*0.02,
-    size: 4 + Math.random()*3,
+    decay: 0.022 + Math.random()*0.018,
+    size: PIXEL_SIZES[Math.floor(Math.random()*PIXEL_SIZES.length)],
     color: colorHex
   });
 }
 function updateAndDrawParticles(dt){
+  const wasSmoothing = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false; // keep the squares crisp/blocky, no anti-aliasing blur
   for(let i = particles.length - 1; i >= 0; i--){
     const p = particles[i];
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     p.life -= p.decay * dt;
     if(p.life <= 0){ particles.splice(i, 1); continue; }
-    ctx.globalAlpha = Math.max(0, p.life) * 0.55;
+    // shrink in whole-pixel steps instead of smoothly, so it still reads as "pixels" while fading
+    const steppedLife = Math.ceil(p.life * 4) / 4;
+    const s = Math.max(1, Math.round(p.size * steppedLife));
+    ctx.globalAlpha = Math.max(0, p.life) * 0.7;
     ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, Math.max(0.5, p.size * p.life), 0, Math.PI*2);
-    ctx.fill();
+    ctx.fillRect(Math.round(p.x - s/2), Math.round(p.y - s/2), s, s);
   }
   ctx.globalAlpha = 1;
+  ctx.imageSmoothingEnabled = wasSmoothing;
 }
 
 function drawPlayer(x,y,color,label){
