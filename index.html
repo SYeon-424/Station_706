@@ -396,7 +396,10 @@ function playBgm(){
   const bgm = document.getElementById('bgm');
   if(!bgm) return;
   bgm.currentTime = 0;
-  bgm.play().catch(()=>{ /* autoplay might be blocked until the next user input; harmless */ });
+  bgm.play().catch(err=>{
+    console.warn('[BGM] 재생 실패:', err && err.name, err && err.message,
+      '— BGM.mp3 파일이 html과 같은 폴더에 있는지, 자동재생이 차단된 건 아닌지 확인해보세요.');
+  });
 }
 function stopBgm(){
   const bgm = document.getElementById('bgm');
@@ -497,8 +500,23 @@ function renderReadyList(){
   }).join('');
 }
 
+// browsers only allow audio.play() reliably inside a direct user gesture.
+// "둘 다 준비완료"는 나중에 비동기로(상대방 신호로) 오는 경우가 많아서 그 시점엔
+// 제스처가 아니라고 판단해 재생이 막힐 수 있음 — 그래서 R/버튼을 누르는 이 순간에
+// 미리 한 번 play()+즉시 pause()로 "잠금 해제"만 해둔다. 실제 재생은 이후 playBgm()에서.
+function unlockBgm(){
+  const bgm = document.getElementById('bgm');
+  if(!bgm || bgm.dataset.unlocked) return;
+  bgm.play().then(()=>{
+    bgm.pause();
+    bgm.currentTime = 0;
+    bgm.dataset.unlocked = '1';
+  }).catch(()=>{ /* still locked; playBgm() will just try again later */ });
+}
+
 function toggleMyReady(){
   if(!db) return;
+  unlockBgm();
   const cur = !!(roomRowState.ready && roomRowState.ready[myName]);
   db.ref(`rooms/${roomCode}/state/ready/${myName}`).set(!cur);
 }
@@ -1296,6 +1314,13 @@ function initGame(){
   renderBriefing();
   setupKeys();
   setupRealtime();
+}
+
+const bgmEl = document.getElementById('bgm');
+if(bgmEl){
+  bgmEl.addEventListener('error', ()=>{
+    console.warn('[BGM] BGM.mp3를 불러오지 못했습니다. 파일이 이 html과 같은 폴더에 있는지, 파일명 대소문자가 정확한지 확인해보세요.');
+  });
 }
 
 renderLogin();
