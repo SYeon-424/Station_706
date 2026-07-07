@@ -158,6 +158,28 @@
     height:64px; overflow:hidden; display:flex; align-items:center; justify-content:center;
   }
   #adBanner a{ color:var(--slate); }
+
+  #settingsBtn{
+    position:fixed;
+    top:calc(14px + env(safe-area-inset-top));
+    right:14px;
+    z-index:45;
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    padding:0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    font-size:17px;
+    line-height:1;
+    background:rgba(14,19,27,0.9);
+  }
+  @media (hover:none) and (pointer:coarse){
+    #settingsBtn{
+      top:calc(66px + env(safe-area-inset-top));
+    }
+  }
   @media (hover:none) and (pointer:coarse){
     #adBanner{
       bottom:auto; top:0;
@@ -631,7 +653,6 @@ function renderShell(){
         <span id="stageIndicator" style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--amber);text-shadow:0 0 6px rgba(245,165,36,0.4);letter-spacing:1px;">STAGE 1/10</span>
         <span class="status-pill pending" id="statusPill">연결 중...</span>
         <div class="players" id="playerChips"></div>
-        <button id="settingsBtn" aria-label="설정" style="padding:6px 11px;font-size:16px;line-height:1;">⚙</button>
       </div>
     </div>
     <div class="canvas-wrap fade-in">
@@ -649,9 +670,28 @@ function renderShell(){
   `;
   canvas = document.getElementById('gameCanvas');
   ctx = canvas.getContext('2d');
-  document.getElementById('settingsBtn').onclick = openSettingsOverlay;
+  showSettingsButton();
   setupMobileControls();
 }
+
+// 화면 우측 상단 구석에 완전히 고정되는 설정 버튼. top-bar 안의 다른 요소(스테이지
+// 표시, 플레이어 칩 등) 길이에 영향받지 않도록 top-bar 밖에서 position:fixed로 따로 둠.
+// 최초 한 번만 body에 만들어두고, 게임 화면(renderShell)에 들어올 때만 보여줬다가
+// 나갈 때 숨김.
+function ensureSettingsButton(){
+  let btn = document.getElementById('settingsBtn');
+  if(!btn){
+    btn = document.createElement('button');
+    btn.id = 'settingsBtn';
+    btn.setAttribute('aria-label', '설정');
+    btn.textContent = '⚙';
+    btn.onclick = openSettingsOverlay;
+    document.body.appendChild(btn);
+  }
+  return btn;
+}
+function showSettingsButton(){ ensureSettingsButton().style.display = 'flex'; }
+function hideSettingsButton(){ const btn = document.getElementById('settingsBtn'); if(btn) btn.style.display = 'none'; }
 
 // 나가기 / 볼륨 조절 / 레벨 초기화 / 디버그 스테이지 이동을 한 곳에 모아둔 설정 팝업.
 // 화면 우측 상단 ⚙ 버튼을 누르면 열림.
@@ -1292,6 +1332,7 @@ function removeOverlay(){
   const overlay = document.getElementById('sfOverlay');
   if(overlay) overlay.remove();
   closeSettingsOverlay();
+  hideSettingsButton();
 }
 
 async function shareResult(won){
