@@ -1484,6 +1484,11 @@ function teardownRealtime(){
 async function leaveRoom(){
   if(!db || !roomCode){ renderLogin(); return; }
   stopBgm();
+  // 다른 무엇보다 먼저 위치 전송 타이머부터 꺼야 함 — 안 그러면 아래 트랜잭션이
+  // 네트워크를 오가는 그 짧은 사이에도 이 타이머가 40ms마다 계속 내 위치를
+  // 다시 써버려서, 트랜잭션이 지운 내 자리가 바로 되살아나 버림 (그래서
+  // 나갔는데도 상대방 화면엔 계속 접속된 것처럼 보였던 것).
+  if(posSendTimer){ clearInterval(posSendTimer); posSendTimer = null; }
   const leavingCode = roomCode;
   const leavingName = myName;
   try{
