@@ -202,6 +202,9 @@ let posSendTimer = null;
 let keys = new Set();
 let lastRemoteSnapshots = {};
 let onlineNames = new Set();
+// 나간 사람의 마지막 위치에서 재생되는 "빨갛게 변했다가 픽셀로 흩어지는" 연출 상태.
+// key: 플레이어 이름, value: {x, y, start, burst}
+let dissolvingPlayers = {};
 let realtimeRefs = {};
 let myPlayerRef = null;
 let roomRowState = { level:0, bridgesOn:{}, gatesOpen:{}, crumbleStart:{}, ready:{}, gameStarted:false, startTime:null, dead:false, deathReason:null, won:false };
@@ -779,6 +782,10 @@ function isOnPad(pos, rect){
 }
 
 const PIXEL_SIZES = [3, 4, 5, 6]; // discrete sizes so trail reads as blocky pixels, not smooth dots
+// 방에서 나간 사람의 캐릭터가 빨갛게 깜빡이는(FLASH) 시간, 그리고 파티클까지 다 사라지는 총 시간
+const DISSOLVE_FLASH_MS = 220;
+const DISSOLVE_TOTAL_MS = 700;
+
 function spawnTrailParticle(x, y, colorHex){
   if(particles.length > 220) particles.splice(0, particles.length - 220);
   const grid = 2; // snap to a small grid for a chunkier, less "smooth" look
@@ -812,6 +819,25 @@ function spawnLandingBurst(x, y, colorHex, intensity){
   }
   if(particles.length > 220) particles.splice(0, particles.length - 220);
 }
+// 방을 나간 플레이어의 마지막 위치에서 사방으로 픽셀이 흩어지는 연출
+function spawnDissolveBurst(x, y){
+  const count = 22;
+  for(let i = 0; i < count; i++){
+    const angle = (Math.PI * 2 * i / count) + (Math.random()-0.5) * 0.4;
+    const speed = 0.6 + Math.random() * 1.1;
+    particles.push({
+      x: x + (Math.random()-0.5)*6,
+      y: y - PH/2 + (Math.random()-0.5)*10,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 0.3,
+      life: 1,
+      decay: 0.02 + Math.random()*0.015,
+      size: PIXEL_SIZES[Math.floor(Math.random()*PIXEL_SIZES.length)],
+      color: '#e34848'
+    });
+  }
+  if(particles.length > 260) particles.splice(0, particles.length - 260);
+}
 function updateAndDrawParticles(dt){
   const wasSmoothing = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = false; // keep the squares crisp/blocky, no anti-aliasing blur
@@ -830,6 +856,24 @@ function updateAndDrawParticles(dt){
   }
   ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = wasSmoothing;
+}
+
+// 나간 플레이어들의 "빨갛게 깜빡 → 픽셀로 흩어짐" 연출을 매 프레임 갱신/렌더링
+function updateAndDrawDissolves(t){
+  Object.entries(dissolvingPlayers).forEach(([name, d])=>{
+    const elapsed = t - d.start;
+    if(elapsed < DISSOLVE_FLASH_MS){
+      const flashT = elapsed / DISSOLVE_FLASH_MS;
+      const shake = (1 - flashT) * 2;
+      drawPlayer(d.x + (Math.random()-0.5)*shake, d.y, '#e34848', name, 0);
+    } else if(!d.burst){
+      d.burst = true;
+      spawnDissolveBurst(d.x, d.y);
+    }
+    if(elapsed >= DISSOLVE_TOTAL_MS){
+      delete dissolvingPlayers[name];
+    }
+  });
 }
 
 function drawPlayer(x,y,color,label,squash){
@@ -931,6 +975,7 @@ function drawLevel(remotePositions, bridgeStates, t, dt){
     if(Math.random() < 0.75) spawnTrailParticle(pos.x, pos.y, '#f5a524');
   });
   updateAndDrawParticles(dt || 1);
+  updateAndDrawDissolves(t);
 
   Object.entries(remotePositions).forEach(([name,pos])=>drawPlayer(pos.x, pos.y, '#f5a524', name));
   drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName, landingSquash);
@@ -1279,6 +1324,7 @@ function applyLevelReset(lvl){
   pendingLaunchFire = {};
   lastSeenLaunchTs = {};
   particles = [];
+  dissolvingPlayers = {};
   const sp = startPos();
   myPlayer.x = sp.x; myPlayer.y = sp.y; myPlayer.vx = 0; myPlayer.vy = 0;
   updateStageIndicator();
@@ -1308,7 +1354,24 @@ function setupRealtime(){
   realtimeRefs.players = db.ref(`rooms/${roomCode}/players`);
   realtimeRefs.players.on('value', (snap)=>{
     const val = snap.val() || {};
-    onlineNames = new Set(Object.keys(val));
+    const newNames = new Set(Object.keys(val));
+
+    // 누가 나갔는지 감지 → 마지막 위치에서 빨갛게 변했다가 픽셀로 흩어지는 연출 시작.
+    // 이걸 안 해주면 lastRemoteSnapshots에 남은 마지막 위치를 계속 보간(extrapolate)해서
+    // 그려주는 바람에, 나간 사람이 시체처럼 화면에 계속 남아있게 됨.
+    onlineNames.forEach(name=>{
+      if(name === myName) return;
+      if(!newNames.has(name)){
+        const buf = lastRemoteSnapshots[name];
+        const last = buf && buf.length ? buf[buf.length-1] : null;
+        if(last){
+          dissolvingPlayers[name] = { x:last.x, y:last.y, start:Date.now(), burst:false };
+        }
+        delete lastRemoteSnapshots[name];
+      }
+    });
+
+    onlineNames = newNames;
     updatePlayerChips();
     if(gamePhase === 'briefing') renderReadyList();
     Object.entries(val).forEach(([name, pos])=>{
@@ -1422,13 +1485,26 @@ async function leaveRoom(){
   if(!db || !roomCode){ renderLogin(); return; }
   stopBgm();
   const leavingCode = roomCode;
+  const leavingName = myName;
   try{
     await db.ref(`rooms/${leavingCode}`).onDisconnect().cancel();
-    if(myPlayerRef){ await myPlayerRef.onDisconnect().cancel(); await myPlayerRef.remove(); }
+    if(myPlayerRef){ await myPlayerRef.onDisconnect().cancel(); }
   }catch(e){ console.error(e); }
+
   try{
-    const snap = await db.ref(`rooms/${leavingCode}/players`).once('value');
-    const remaining = snap.val() || {};
+    // 내 자리를 지우는 것과 "이제 방에 아무도 없나?" 체크를 트랜잭션 하나로 묶어서 처리.
+    // 예전에는 remove() 하고 나서 따로 once()로 다시 읽었는데, 두 사람이 거의 동시에
+    // 나가기를 누르면 서로 "어? 쟤 아직 있네" 하고 착각해서 둘 다 방을 안 지우는
+    // 경합(race condition)이 있었음 — 그래서 방을 나가도 코드가 재사용 안 되고
+    // 남아있는 버그가 생겼던 것. 트랜잭션은 파이어베이스가 최신 값 기준으로
+    // 알아서 재시도해주기 때문에 이 경합이 사라짐.
+    const result = await db.ref(`rooms/${leavingCode}/players`).transaction(current=>{
+      if(!current) return current;
+      const next = {...current};
+      delete next[leavingName];
+      return next;
+    });
+    const remaining = (result.committed && result.snapshot.val()) || {};
     if(Object.keys(remaining).length === 0){
       await db.ref(`rooms/${leavingCode}`).remove();
     }
@@ -1439,6 +1515,7 @@ async function leaveRoom(){
   oxygenTriggerSent = false;
   onlineNames = new Set();
   lastRemoteSnapshots = {};
+  dissolvingPlayers = {};
   roomRowState = defaultRoomState();
   myName = ""; roomCode = "";
   myPlayerRef = null;
