@@ -596,6 +596,7 @@ function renderBriefing(){
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="center fade-in">
+      <div id="langToggleLogin">${langToggleHtml('briefingLang')}</div>
       <div class="sf-panel" style="max-width:520px;">
         <div class="sf-panel-title ok">${t('briefingTitle')}</div>
         <div class="sf-body">${t('briefingBody')}</div>
@@ -613,6 +614,7 @@ function renderBriefing(){
       </div>
     </div>
   `;
+  bindLangToggle('briefingLang');
   renderReadyList();
   const leaveLink = document.getElementById('leaveLinkBriefing');
   if(leaveLink) leaveLink.onclick = ()=>{ if(confirm(t('confirmLeaveRoom'))) leaveRoom(); };
