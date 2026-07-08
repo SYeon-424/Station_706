@@ -90,6 +90,12 @@
   #settingsBtn{position:fixed;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:45;width:40px;height:40px;border-radius:50%;padding:0;display:none;align-items:center;justify-content:center;font-size:17px;line-height:1;background:rgba(14,19,27,0.9);}
   @media (hover:none) and (pointer:coarse){#settingsBtn{top:calc(66px + env(safe-area-inset-top));}}
   @media (hover:none) and (pointer:coarse){#adBanner{bottom:auto;top:0;border-top:none;border-bottom:1px solid var(--line);height:auto;min-height:56px;padding-top:calc(6px + env(safe-area-inset-top));}#app{padding-top:calc(60px + env(safe-area-inset-top));}}
+  #langToggleLogin{position:absolute;top:0;right:0;display:flex;gap:6px;}
+  #langToggleLogin button{padding:6px 12px;font-size:11px;}
+  #langToggleLogin button.active{background:rgba(74,222,128,0.18);border-color:var(--green);}
+  .settings-lang-row{display:flex;gap:8px;margin-bottom:18px;}
+  .settings-lang-row button{flex:1;padding:8px 10px;font-size:12px;}
+  .settings-lang-row button.active{background:rgba(74,222,128,0.18);border-color:var(--green);}
 </style>
 </head>
 <body>
@@ -114,6 +120,146 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "661243380855",
   appId: "1:661243380855:web:2ccb178dc80c4cf5d73272"
 };
+
+let LANG = (function(){ try{ return localStorage.getItem('stationLang') || 'ko'; }catch(e){ return 'ko'; } })();
+let currentScreen = 'login'; // 'login' | 'briefing' | 'playing' | 'dead' | 'won'
+let inRoomSession = false;
+
+const I18N = {
+  ko: {
+    firebaseNotConfigured: "FIREBASE_CONFIG가 아직 설정되지 않았어요. 코드 상단 값을 콘솔에서 복사한 값으로 바꿔주세요.",
+    nicknameLabel: "닉네임",
+    nicknamePlaceholder: "예: 은수",
+    roomCodeLabel: "방 코드 (친구와 동일하게)",
+    roomCodePlaceholder: "예: NEBULA7",
+    enterBtn: "입장",
+    alertRoomInProgress: "이 방은 이미 게임이 진행 중입니다. 게임이 끝난 뒤 다시 시도해주세요.",
+    alertDupNickname: "이미 같은 닉네임을 사용하는 플레이어가 있습니다. 다른 닉네임을 사용해주세요.",
+    briefingTitle: "// 비상 방송: Station 706 //",
+    briefingBody: "궤도 Station 706의 주 생명유지 장치가 손상되었습니다.<br>예비 산소는 앞으로 <b class=\"glow\">5분</b>밖에 남지 않았습니다.<br>탈출 포드까지 가는 통로에는 10개의 격리 구역이 있으며, 각 구역의 문은 두 사람이 동시에 압력판을 밟아야 열립니다.<br>동료와 협력하여 산소가 바닥나기 전에 Station을 탈출하십시오.",
+    readyCheckLabel: "READY CHECK",
+    rKeyHintSuffix: " 키를 눌러 준비 완료",
+    mobileReadyBtn: "준비 완료",
+    leaveLinkBriefing: "방 나가기 (코드 반납)",
+    confirmLeaveRoom: "방을 나갈까요? 아무도 남지 않으면 이 코드는 완전히 초기화됩니다.",
+    waitingConnection: "연결 대기 중...",
+    meLabel: "(나)",
+    waitTag: "대기 중",
+    statusConnected: "연결됨",
+    statusConnecting: "연결 중...",
+    controlsHint: "← → 이동 · Space / ↑ 점프 &nbsp;|&nbsp; 협동 플랫포머",
+    settingsTitle: "// 설정 //",
+    langLabel: "언어",
+    bgmVolumeLabel: "배경음악 볼륨",
+    sfxVolumeLabel: "효과음 볼륨",
+    resetLevelBtn: "레벨 1부터 다시 시작",
+    debugStageLabel: "디버그: 스테이지",
+    debugMoveBtn: "이동",
+    settingsLeaveBtn: "나가기 (코드 반납)",
+    settingsCloseBtn: "닫기",
+    confirmResetLevel: "이 방을 스테이지 1부터 초기화할까요?",
+    debugPwPrompt: "디버그 비밀번호를 입력하세요",
+    debugPwWrong: "비밀번호가 틀렸습니다.",
+    deathTitle: "// 생명유지 시스템 정지 //",
+    deathBody: "예비 산소가 완전히 고갈되었습니다.<br>Station 706 승무원의 생체 신호가 더 이상 감지되지 않습니다.<br><span class=\"muted\">[End 1] 임무 실패 — 사망</span>",
+    shareBtn: "결과 공유하기",
+    retryBtn: "다시 도전하기",
+    retryBtnWin: "새 임무 시작",
+    leaveBtn: "나가기 (코드 반납)",
+    winTitle: "// 탈출 성공 //",
+    winBody: "탈출 포드가 Station 706에서 무사히 분리되었습니다.<br>10개 격리 구역을 모두 통과해 승무원 전원이 생존했습니다.<br><span class=\"glow\">[End 2] 임무 성공 - 탈출</span>",
+    nextStoryLink: "→ 다음 이야기: Station 605",
+    clearBannerNext: "다음 구역으로 이동 중...",
+    clearBannerFinal: "탈출 포드로 진입 중...",
+    shareWinWithTime: (mm,ss) => `${mm}분 ${ss}초 남기고 탈출 성공! 다음에도 탈출해보고 싶어!`,
+    shareWinNoTime: "탈출 성공! 다음에도 탈출해보고 싶어!",
+    shareLose: "탈출 실패... 이번엔 성공할 수 있을까?",
+    clipboardCopied: "결과가 클립보드에 복사됐어요. 원하는 곳에 붙여넣기 해보세요!",
+    promptCopyManually: "아래 내용을 복사해서 공유하세요:",
+    beforeUnloadWarning: "방에서 나가시겠습니까? 진행 상황이 저장되지 않을 수 있습니다."
+  },
+  en: {
+    firebaseNotConfigured: "FIREBASE_CONFIG isn't set up yet. Replace the values at the top of the code with your own from the console.",
+    nicknameLabel: "Nickname",
+    nicknamePlaceholder: "e.g. Alex",
+    roomCodeLabel: "Room code (same as your friend's)",
+    roomCodePlaceholder: "e.g. NEBULA7",
+    enterBtn: "Enter",
+    alertRoomInProgress: "This room already has a game in progress. Please try again after it ends.",
+    alertDupNickname: "Someone in this room is already using that nickname. Please choose a different one.",
+    briefingTitle: "// EMERGENCY BROADCAST: Station 706 //",
+    briefingBody: "The primary life support system on orbital Station 706 has been damaged.<br>Backup oxygen will last only <b class=\"glow\">5 more minutes</b>.<br>The corridor to the escape pod has 10 sealed sections, and each door only opens when two people step on the pressure plates at the same time.<br>Work with your crewmate to escape the station before the oxygen runs out.",
+    readyCheckLabel: "READY CHECK",
+    rKeyHintSuffix: " to mark yourself ready",
+    mobileReadyBtn: "Ready",
+    leaveLinkBriefing: "Leave room (release code)",
+    confirmLeaveRoom: "Leave the room? If no one else remains, this code will be completely reset.",
+    waitingConnection: "Waiting to connect...",
+    meLabel: "(me)",
+    waitTag: "Waiting",
+    statusConnected: "Connected",
+    statusConnecting: "Connecting...",
+    controlsHint: "← → Move · Space / ↑ Jump &nbsp;|&nbsp; Co-op platformer",
+    settingsTitle: "// SETTINGS //",
+    langLabel: "Language",
+    bgmVolumeLabel: "Music Volume",
+    sfxVolumeLabel: "SFX Volume",
+    resetLevelBtn: "Restart from Level 1",
+    debugStageLabel: "Debug: stage",
+    debugMoveBtn: "Go",
+    settingsLeaveBtn: "Leave (release code)",
+    settingsCloseBtn: "Close",
+    confirmResetLevel: "Reset this room back to stage 1?",
+    debugPwPrompt: "Enter the debug password",
+    debugPwWrong: "Incorrect password.",
+    deathTitle: "// LIFE SUPPORT OFFLINE //",
+    deathBody: "Backup oxygen has been fully depleted.<br>No vital signs are detected from the Station 706 crew.<br><span class=\"muted\">[End 1] Mission Failed — Deceased</span>",
+    shareBtn: "Share result",
+    retryBtn: "Try again",
+    retryBtnWin: "Start new mission",
+    leaveBtn: "Leave (release code)",
+    winTitle: "// ESCAPE SUCCESSFUL //",
+    winBody: "The escape pod safely separated from Station 706.<br>All 10 sealed sections were cleared and the entire crew survived.<br><span class=\"glow\">[End 2] Mission Success - Escaped</span>",
+    nextStoryLink: "→ Next story: Station 605",
+    clearBannerNext: "Moving to the next zone...",
+    clearBannerFinal: "Boarding the escape pod...",
+    shareWinWithTime: (mm,ss) => `Escaped with ${mm}m ${ss}s of oxygen to spare! Can't wait to try again!`,
+    shareWinNoTime: "Escaped successfully! Can't wait to try again!",
+    shareLose: "Mission failed... will we make it next time?",
+    clipboardCopied: "Result copied to clipboard. Paste it anywhere you like!",
+    promptCopyManually: "Copy the text below to share:",
+    beforeUnloadWarning: "Leave the room? Your progress may not be saved."
+  }
+};
+function t(key){ return (I18N[LANG] && I18N[LANG][key] !== undefined) ? I18N[LANG][key] : I18N.ko[key]; }
+function setLang(l){
+  LANG = l;
+  try{ localStorage.setItem('stationLang', l); }catch(e){}
+  applyLanguageChange();
+}
+function applyLanguageChange(){
+  if(currentScreen === 'login') renderLogin();
+  else if(currentScreen === 'briefing') renderBriefing();
+  else if(currentScreen === 'dead') renderDeathOverlay();
+  else if(currentScreen === 'won') renderWinOverlay();
+  else if(currentScreen === 'playing'){
+    const hint = document.getElementById('controlsHint');
+    if(hint) hint.innerHTML = t('controlsHint');
+  }
+  if(document.getElementById('settingsOverlay')) openSettingsOverlay();
+}
+function langToggleHtml(idPrefix){
+  return `
+    <button id="${idPrefix}Ko" class="${LANG==='ko'?'active':''}">한국어</button>
+    <button id="${idPrefix}En" class="${LANG==='en'?'active':''}">EN</button>
+  `;
+}
+function bindLangToggle(idPrefix){
+  const koBtn = document.getElementById(idPrefix+'Ko');
+  const enBtn = document.getElementById(idPrefix+'En');
+  if(koBtn) koBtn.onclick = ()=> setLang('ko');
+  if(enBtn) enBtn.onclick = ()=> setLang('en');
+}
 
 let db = null;
 let myName = "", roomCode = "";
@@ -395,22 +541,26 @@ function playSfx(id){
 }
 
 function renderLogin(){
+  currentScreen = 'login';
+  inRoomSession = false;
   const app = document.getElementById('app');
   const configured = !FIREBASE_CONFIG.apiKey.includes("YOUR_API_KEY");
   app.innerHTML = `
     <div class="center fade-in">
-      <h1 class="glow" style="font-size:28px;">정거장 706</h1>
+      <div id="langToggleLogin">${langToggleHtml('loginLang')}</div>
+      <h1 class="glow" style="font-size:28px;">Station 706</h1>
       <div class="muted" style="margin-bottom:24px;">Stage 1~10</div>
-      ${!configured ? `<div class="card" style="max-width:380px;border-color:var(--amber);color:var(--amber);">FIREBASE_CONFIG가 아직 설정되지 않았어요. 코드 상단 값을 콘솔에서 복사한 값으로 바꿔주세요.</div>` : ''}
+      ${!configured ? `<div class="card" style="max-width:380px;border-color:var(--amber);color:var(--amber);">${t('firebaseNotConfigured')}</div>` : ''}
       <div class="card" style="width:100%;max-width:380px;text-align:left;">
-        <div class="small" style="margin-bottom:6px;">닉네임</div>
-        <input type="text" id="nameInput" placeholder="예: 은수" style="margin-bottom:14px;">
-        <div class="small" style="margin-bottom:6px;">방 코드 (친구와 동일하게)</div>
-        <input type="text" id="roomInput" placeholder="예: NEBULA7">
-        <button id="enterBtn" style="width:100%;margin-top:16px;" ${configured?'':'disabled'}>입장</button>
+        <div class="small" style="margin-bottom:6px;">${t('nicknameLabel')}</div>
+        <input type="text" id="nameInput" placeholder="${t('nicknamePlaceholder')}" style="margin-bottom:14px;">
+        <div class="small" style="margin-bottom:6px;">${t('roomCodeLabel')}</div>
+        <input type="text" id="roomInput" placeholder="${t('roomCodePlaceholder')}">
+        <button id="enterBtn" style="width:100%;margin-top:16px;" ${configured?'':'disabled'}>${t('enterBtn')}</button>
       </div>
     </div>
   `;
+  bindLangToggle('loginLang');
   document.getElementById('enterBtn').onclick = async ()=>{
     const n = document.getElementById('nameInput').value.trim();
     const r = document.getElementById('roomInput').value.trim().toUpperCase();
@@ -422,7 +572,7 @@ function renderLogin(){
     const snap = await db.ref(`rooms/${roomCode}/state`).once('value');
     const existing = snap.val();
     if(existing && existing.gameStarted && !existing.dead && !existing.won){
-      alert("이 방은 이미 게임이 진행 중입니다. 게임이 끝난 뒤 다시 시도해주세요.");
+      alert(t('alertRoomInProgress'));
       return;
     }
 
@@ -430,7 +580,7 @@ function renderLogin(){
     const playersSnap = await db.ref(`rooms/${roomCode}/players`).once('value');
     const existingPlayers = playersSnap.val() || {};
     if(Object.keys(existingPlayers).includes(n)){
-      alert("이미 같은 닉네임을 사용하는 플레이어가 있습니다. 다른 닉네임을 사용해주세요.");
+      alert(t('alertDupNickname'));
       return;
     }
 
@@ -441,35 +591,31 @@ function renderLogin(){
 }
 
 function renderBriefing(){
+  currentScreen = 'briefing';
+  inRoomSession = true;
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="center fade-in">
       <div class="sf-panel" style="max-width:520px;">
-        <div class="sf-panel-title ok">// 비상 방송: 정거장 706 //</div>
-        <div class="sf-body">
-          궤도 정거장 706의 주 생명유지 장치가 손상되었습니다.<br>
-          예비 산소는 앞으로 <b class="glow">5분</b>밖에 남지 않았습니다.<br>
-          탈출 포드까지 가는 통로에는 10개의 격리 구역이 있으며,
-          각 구역의 문은 두 사람이 동시에 압력판을 밟아야 열립니다.<br>
-          동료와 협력하여 산소가 바닥나기 전에 정거장을 탈출하십시오.
-        </div>
+        <div class="sf-panel-title ok">${t('briefingTitle')}</div>
+        <div class="sf-body">${t('briefingBody')}</div>
         <div class="sf-hr"></div>
-        <div class="small" style="margin-bottom:6px;letter-spacing:1px;">READY CHECK</div>
+        <div class="small" style="margin-bottom:6px;letter-spacing:1px;">${t('readyCheckLabel')}</div>
         <div id="readyList"></div>
         <div class="sf-hr"></div>
         <div class="small blink desktop-only" style="text-align:center;">
-          <span class="r-key">R</span> 키를 눌러 준비 완료
+          <span class="r-key">R</span>${t('rKeyHintSuffix')}
         </div>
-        <button id="mobileReadyBtn" class="mobile-only" style="width:100%;margin-top:10px;">준비 완료</button>
+        <button id="mobileReadyBtn" class="mobile-only" style="width:100%;margin-top:10px;">${t('mobileReadyBtn')}</button>
         <div style="text-align:center;margin-top:14px;">
-          <a class="link-reset" id="leaveLinkBriefing">방 나가기 (코드 반납)</a>
+          <a class="link-reset" id="leaveLinkBriefing">${t('leaveLinkBriefing')}</a>
         </div>
       </div>
     </div>
   `;
   renderReadyList();
   const leaveLink = document.getElementById('leaveLinkBriefing');
-  if(leaveLink) leaveLink.onclick = ()=>{ if(confirm("방을 나갈까요? 아무도 남지 않으면 이 코드는 완전히 초기화됩니다.")) leaveRoom(); };
+  if(leaveLink) leaveLink.onclick = ()=>{ if(confirm(t('confirmLeaveRoom'))) leaveRoom(); };
   const mobileReadyBtn = document.getElementById('mobileReadyBtn');
   if(mobileReadyBtn) mobileReadyBtn.onclick = ()=> toggleMyReady();
 }
@@ -479,7 +625,7 @@ function renderReadyList(){
   if(!listEl) return;
   const names = Array.from(onlineNames);
   if(names.length === 0){
-    listEl.innerHTML = `<div class="small">연결 대기 중...</div>`;
+    listEl.innerHTML = `<div class="small">${t('waitingConnection')}</div>`;
     return;
   }
   const ready = roomRowState.ready || {};
@@ -487,8 +633,8 @@ function renderReadyList(){
     const isReady = !!ready[name];
     return `
       <div class="ready-row">
-        <span>${escapeHtml(name)}${name===myName ? ' <span class="small">(나)</span>' : ''}</span>
-        <span class="ready-tag ${isReady?'ready':'wait'}">${isReady ? 'READY' : '대기 중'}</span>
+        <span>${escapeHtml(name)}${name===myName ? ` <span class="small">${t('meLabel')}</span>` : ''}</span>
+        <span class="ready-tag ${isReady?'ready':'wait'}">${isReady ? 'READY' : t('waitTag')}</span>
       </div>
     `;
   }).join('');
@@ -531,11 +677,13 @@ function maybeLaunchGame(){
 }
 
 function renderShell(){
+  currentScreen = 'playing';
+  inRoomSession = true;
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="top-bar fade-in">
       <div class="station-title">
-        <div><h2 class="glow" style="font-size:18px;">정거장 706</h2><div class="small">ROOM ${escapeHtml(roomCode)}</div></div>
+        <div><h2 class="glow" style="font-size:18px;">Station 706</h2><div class="small">ROOM ${escapeHtml(roomCode)}</div></div>
         <div class="oxy-wrap">
           <span class="oxy-label">OXYGEN</span>
           <div class="oxy-bar-outer"><div class="oxy-bar-inner" id="oxyBarInner"></div></div>
@@ -544,7 +692,7 @@ function renderShell(){
       </div>
       <div style="display:flex;align-items:center;gap:12px;">
         <span id="stageIndicator" style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--amber);text-shadow:0 0 6px rgba(245,165,36,0.4);letter-spacing:1px;">STAGE 1/10</span>
-        <span class="status-pill pending" id="statusPill">연결 중...</span>
+        <span class="status-pill pending" id="statusPill">${t('statusConnecting')}</span>
         <div class="players" id="playerChips"></div>
       </div>
     </div>
@@ -552,7 +700,7 @@ function renderShell(){
       <canvas id="gameCanvas" width="${L().width}" height="${L().height}"></canvas>
       <div id="clearBanner"></div>
     </div>
-    <div class="controls-hint desktop-only">← → 이동 · Space / ↑ 점프 &nbsp;|&nbsp; 협동 플랫포머</div>
+    <div class="controls-hint desktop-only" id="controlsHint">${t('controlsHint')}</div>
     <div class="mobile-controls mobile-only">
       <div class="mc-move">
         <button class="mc-btn" id="mcLeft" aria-label="left">◀</button>
@@ -592,33 +740,38 @@ function openSettingsOverlay(){
   overlay.className = 'sf-overlay';
   overlay.innerHTML = `
     <div class="sf-panel fade-in" style="max-width:420px;">
-      <div class="sf-panel-title ok">// 설정 //</div>
+      <div class="sf-panel-title ok">${t('settingsTitle')}</div>
       <div class="sf-body">
         <div style="margin-bottom:18px;">
-          <div class="small" style="margin-bottom:6px;">배경음악 볼륨</div>
+          <div class="small" style="margin-bottom:6px;">${t('langLabel')}</div>
+          <div class="settings-lang-row">${langToggleHtml('settingsLang')}</div>
+        </div>
+        <div style="margin-bottom:18px;">
+          <div class="small" style="margin-bottom:6px;">${t('bgmVolumeLabel')}</div>
           <input type="range" id="bgmVolumeSlider" min="0" max="100" value="${Math.round(bgmVolume*100)}">
         </div>
         <div>
-          <div class="small" style="margin-bottom:6px;">효과음 볼륨</div>
+          <div class="small" style="margin-bottom:6px;">${t('sfxVolumeLabel')}</div>
           <input type="range" id="sfxVolumeSlider" min="0" max="100" value="${Math.round(sfxVolume*100)}">
         </div>
       </div>
       <div class="sf-hr"></div>
-      <button id="settingsResetBtn" style="width:100%;margin-bottom:10px;">레벨 1부터 다시 시작</button>
+      <button id="settingsResetBtn" style="width:100%;margin-bottom:10px;">${t('resetLevelBtn')}</button>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <span class="small">디버그: 스테이지</span>
+        <span class="small">${t('debugStageLabel')}</span>
         <input type="text" id="settingsJumpStageInput" placeholder="1-10" style="width:60px;padding:4px 8px;font-size:12px;">
-        <button id="settingsJumpStageBtn" style="padding:4px 10px;font-size:12px;">이동</button>
+        <button id="settingsJumpStageBtn" style="padding:4px 10px;font-size:12px;">${t('debugMoveBtn')}</button>
       </div>
       <div class="sf-hr"></div>
-      <button id="settingsLeaveBtn" style="width:100%;margin-bottom:8px;border-color:var(--red);color:var(--red);">나가기 (코드 반납)</button>
-      <button id="settingsCloseBtn" style="width:100%;border-color:var(--slate);color:var(--slate);">닫기</button>
+      <button id="settingsLeaveBtn" style="width:100%;margin-bottom:8px;border-color:var(--red);color:var(--red);">${t('settingsLeaveBtn')}</button>
+      <button id="settingsCloseBtn" style="width:100%;border-color:var(--slate);color:var(--slate);">${t('settingsCloseBtn')}</button>
       <div style="text-align:center;margin-top:16px;font-size:10px;color:var(--slate);line-height:1.6;">
         Music by MusMus<br>
         <a href="https://musmus.main.jp/" target="_blank" rel="noopener" class="link-reset">https://musmus.main.jp/</a>
       </div>
     </div>
   `;
+  bindLangToggle('settingsLang');
   document.getElementById('bgmVolumeSlider').oninput = (e)=>{
     bgmVolume = Number(e.target.value) / 100;
     const bgm = document.getElementById('bgm');
@@ -628,15 +781,15 @@ function openSettingsOverlay(){
     sfxVolume = Number(e.target.value) / 100;
   };
   document.getElementById('settingsResetBtn').onclick = async ()=>{
-    if(!confirm("이 방을 스테이지 1부터 초기화할까요?")) return;
+    if(!confirm(t('confirmResetLevel'))) return;
     await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
     closeSettingsOverlay();
   };
   document.getElementById('settingsJumpStageBtn').onclick = async ()=>{
     const n = parseInt(document.getElementById('settingsJumpStageInput').value, 10);
     if(!n || n < 1 || n > LEVELS.length) return;
-    const pw = prompt("디버그 비밀번호를 입력하세요");
-    if(pw !== "4444"){ alert("비밀번호가 틀렸습니다."); return; }
+    const pw = prompt(t('debugPwPrompt'));
+    if(pw !== "4444"){ alert(t('debugPwWrong')); return; }
     const snap = await db.ref(`rooms/${roomCode}/state`).once('value');
     const current = snap.val() || {};
     const base = defaultRoomState();
@@ -648,7 +801,7 @@ function openSettingsOverlay(){
     closeSettingsOverlay();
   };
   document.getElementById('settingsLeaveBtn').onclick = ()=>{
-    if(confirm("방을 나갈까요? 아무도 남지 않으면 이 코드는 완전히 초기화됩니다.")){
+    if(confirm(t('confirmLeaveRoom'))){
       closeSettingsOverlay();
       leaveRoom();
     }
@@ -1063,8 +1216,8 @@ function gameLoop(){
     advancing = true;
     if(banner){
       banner.innerHTML = isLastLevel
-        ? `<div class="clear-banner">ALL CLEAR!<br><span style="font-size:12px;color:#8a98a8;">탈출 포드로 진입 중...</span></div>`
-        : `<div class="clear-banner">STAGE CLEAR!<br><span style="font-size:12px;color:#8a98a8;">다음 구역으로 이동 중...</span></div>`;
+        ? `<div class="clear-banner">ALL CLEAR!<br><span style="font-size:12px;color:#8a98a8;">${t('clearBannerFinal')}</span></div>`
+        : `<div class="clear-banner">STAGE CLEAR!<br><span style="font-size:12px;color:#8a98a8;">${t('clearBannerNext')}</span></div>`;
     }
     if(isLastLevel){
       const remainingAtWin = Math.max(0, lastKnownRemainingMs);
@@ -1128,42 +1281,39 @@ async function shareResult(won){
       const totalSec = Math.max(0, Math.floor(ms/1000));
       const mm = Math.floor(totalSec/60);
       const ss = totalSec % 60;
-      text = `${mm}분 ${ss}초 남기고 탈출 성공! 다음에도 탈출해보고 싶어!`;
+      text = t('shareWinWithTime')(mm, ss);
     } else {
-      text = `탈출 성공! 다음에도 탈출해보고 싶어!`;
+      text = t('shareWinNoTime');
     }
   } else {
-    text = `탈출 실패... 이번엔 성공할 수 있을까?`;
+    text = t('shareLose');
   }
-  const shareData = { title: '정거장 706', text, url: location.href };
+  const shareData = { title: 'Station 706', text, url: location.href };
   if(navigator.share){
     try{ await navigator.share(shareData); }catch(e){}
   } else {
     const fullText = `${text}\n${location.href}`;
     try{
       await navigator.clipboard.writeText(fullText);
-      alert('결과가 클립보드에 복사됐어요. 원하는 곳에 붙여넣기 해보세요!');
+      alert(t('clipboardCopied'));
     }catch(e){
-      prompt('아래 내용을 복사해서 공유하세요:', fullText);
+      prompt(t('promptCopyManually'), fullText);
     }
   }
 }
 
 function renderDeathOverlay(){
+  currentScreen = 'dead';
   let overlay = document.getElementById('sfOverlay');
   if(!overlay){ overlay = document.createElement('div'); overlay.id = 'sfOverlay'; document.body.appendChild(overlay); }
   overlay.className = 'sf-overlay';
   overlay.innerHTML = `
     <div class="sf-panel danger fade-in">
-      <div class="sf-panel-title danger">// 생명유지 시스템 정지 //</div>
-      <div class="sf-body">
-        예비 산소가 완전히 고갈되었습니다.<br>
-        정거장 706 승무원의 생체 신호가 더 이상 감지되지 않습니다.<br>
-        <span class="muted">[End 1] 임무 실패 — 사망</span>
-      </div>
-      <button id="shareBtnDead" style="width:100%;border-color:var(--slate);color:var(--white);">결과 공유하기</button>
-      <button id="retryBtn" style="width:100%;margin-top:8px;">다시 도전하기</button>
-      <button id="leaveBtnDead" style="width:100%;margin-top:8px;border-color:var(--slate);color:var(--slate);">나가기 (코드 반납)</button>
+      <div class="sf-panel-title danger">${t('deathTitle')}</div>
+      <div class="sf-body">${t('deathBody')}</div>
+      <button id="shareBtnDead" style="width:100%;border-color:var(--slate);color:var(--white);">${t('shareBtn')}</button>
+      <button id="retryBtn" style="width:100%;margin-top:8px;">${t('retryBtn')}</button>
+      <button id="leaveBtnDead" style="width:100%;margin-top:8px;border-color:var(--slate);color:var(--slate);">${t('leaveBtn')}</button>
     </div>
   `;
   document.getElementById('shareBtnDead').onclick = ()=> shareResult(false);
@@ -1174,22 +1324,19 @@ function renderDeathOverlay(){
 }
 
 function renderWinOverlay(){
+  currentScreen = 'won';
   let overlay = document.getElementById('sfOverlay');
   if(!overlay){ overlay = document.createElement('div'); overlay.id = 'sfOverlay'; document.body.appendChild(overlay); }
   overlay.className = 'sf-overlay';
   overlay.innerHTML = `
     <div class="sf-panel fade-in">
-      <div class="sf-panel-title ok">// 탈출 성공 //</div>
-      <div class="sf-body">
-        탈출 포드가 정거장 706에서 무사히 분리되었습니다.<br>
-        10개 격리 구역을 모두 통과해 승무원 전원이 생존했습니다.<br>
-        <span class="glow">[End 2] 임무 성공 - 탈출</span>
-      </div>
-      <button id="shareBtnWon" style="width:100%;border-color:var(--green-dim);">결과 공유하기</button>
-      <button id="retryBtn" style="width:100%;margin-top:8px;">새 임무 시작</button>
-      <button id="leaveBtnWon" style="width:100%;margin-top:8px;border-color:var(--slate);color:var(--slate);">나가기 (코드 반납)</button>
+      <div class="sf-panel-title ok">${t('winTitle')}</div>
+      <div class="sf-body">${t('winBody')}</div>
+      <button id="shareBtnWon" style="width:100%;border-color:var(--green-dim);">${t('shareBtn')}</button>
+      <button id="retryBtn" style="width:100%;margin-top:8px;">${t('retryBtnWin')}</button>
+      <button id="leaveBtnWon" style="width:100%;margin-top:8px;border-color:var(--slate);color:var(--slate);">${t('leaveBtn')}</button>
       <div style="text-align:center;margin-top:14px;">
-        <a href="https://station-605-syeon.vercel.app/" class="link-reset" style="font-size:11px;">→ 다음 이야기: 정거장 605</a>
+        <a href="https://station-605-syeon.vercel.app/" class="link-reset" style="font-size:11px;">${t('nextStoryLink')}</a>
       </div>
     </div>
   `;
@@ -1333,8 +1480,8 @@ function setupRealtime(){
   realtimeRefs.connected.on('value', (snap)=>{
     const pill = document.getElementById('statusPill');
     if(!pill) return;
-    if(snap.val() === true){ pill.textContent = '연결됨'; pill.className = 'status-pill connected'; }
-    else { pill.textContent = '연결 중...'; pill.className = 'status-pill pending'; }
+    if(snap.val() === true){ pill.textContent = t('statusConnected'); pill.className = 'status-pill connected'; }
+    else { pill.textContent = t('statusConnecting'); pill.className = 'status-pill pending'; }
   });
 
   posSendTimer = setInterval(()=>{
@@ -1350,6 +1497,7 @@ function teardownRealtime(){
 }
 
 async function leaveRoom(){
+  inRoomSession = false;
   if(!db || !roomCode){ renderLogin(); return; }
   stopBgm();
   if(posSendTimer){ clearInterval(posSendTimer); posSendTimer = null; }
@@ -1374,16 +1522,8 @@ async function leaveRoom(){
   }catch(e){ console.error(e); }
 
   teardownRealtime();
-  gamePhase = 'briefing';
-  oxygenTriggerSent = false;
-  onlineNames = new Set();
-  lastRemoteSnapshots = {};
-  roomRowState = defaultRoomState();
-  myName = ""; roomCode = "";
-  myPlayerRef = null;
-  removeOverlay();
-  closeSettingsOverlay();
-  renderLogin();
+  // 나가기가 확정되면 상태를 깔끔하게 초기화하기 위해 페이지를 한 번 강제로 새로고침한다.
+  location.reload();
 }
 
 function setupKeys(){
@@ -1395,17 +1535,32 @@ function setupKeys(){
   window.addEventListener('keyup', e=>{ keys.delete(e.code); });
 }
 
+function setupUnloadCleanup(){
+  const cleanup = ()=>{
+    if(myPlayerRef){
+      try{ myPlayerRef.remove(); }catch(e){}
+    }
+  };
+  window.addEventListener('pagehide', cleanup);
+  window.addEventListener('beforeunload', cleanup);
+}
+
 function initGame(){
   gamePhase = 'briefing';
   renderBriefing();
   setupKeys();
   setupRealtime();
-
-  // 화면 나갈 때 처리 (새로고침, 앱 닫기, 탭 닫기 등)
-  window.addEventListener('beforeunload', ()=>{
-    leaveRoom();
-  });
+  setupUnloadCleanup();
 }
+
+// 새로고침/탭 닫기 등으로 방을 나가려 할 때 브라우저 자체의 확인창을 띄운다.
+// (보안상 브라우저가 커스텀 문구 대신 자체 안내문을 보여주지만, 실수로 나가는 것을 막아준다.)
+window.addEventListener('beforeunload', (e)=>{
+  if(inRoomSession){
+    e.preventDefault();
+    e.returnValue = t('beforeUnloadWarning');
+  }
+});
 
 const bgmEl = document.getElementById('bgm');
 if(bgmEl){
