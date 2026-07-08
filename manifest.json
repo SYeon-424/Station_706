@@ -1,7 +1,7 @@
 {
-  "name": "정거장 706",
-  "short_name": "정거장706",
-  "description": "협동 탈출 플랫포머 - 정거장 706",
+  "name": "Station 706",
+  "short_name": "Station",
+  "description": "Station 706 - 협동 탈출 플랫포머",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
