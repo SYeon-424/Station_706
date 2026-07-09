@@ -1082,14 +1082,14 @@ function updateOxygenBar(remainingMs){
 function gameLoop(){
   if(gamePhase !== 'playing') return;
   const lvl = L();
-  const t = Date.now();
-  let dt = lastFrameTime ? (t - lastFrameTime) / 16.6667 : 1;
+  const now = Date.now();
+  let dt = lastFrameTime ? (now - lastFrameTime) / 16.6667 : 1;
   dt = Math.max(0.2, Math.min(2.5, dt));
-  lastFrameTime = t;
+  lastFrameTime = now;
   const preview = getInterpolatedRemotePositions();
 
   if(roomRowState.startTime){
-    const remainingMs = OXYGEN_TOTAL_MS - (t - roomRowState.startTime);
+    const remainingMs = OXYGEN_TOTAL_MS - (now - roomRowState.startTime);
     lastKnownRemainingMs = remainingMs;
     updateOxygenBar(remainingMs);
     if(remainingMs <= 0 && !oxygenTriggerSent && !roomRowState.dead && !roomRowState.won){
@@ -1111,7 +1111,7 @@ function gameLoop(){
     const mp = lvl.movingPlatforms[riddenMpIndex];
     const isVertical = mp.x0 === mp.x1;
     if(isVertical){
-      const newRect = getMovingPlatformRect(mp, t);
+      const newRect = getMovingPlatformRect(mp, now);
       if(riddenMpPrevRect){
         myPlayer.x += newRect.x - riddenMpPrevRect.x;
         myPlayer.y += newRect.y - riddenMpPrevRect.y;
@@ -1125,7 +1125,7 @@ function gameLoop(){
     riddenMpPrevRect = null;
   }
 
-  stepPhysics(bridgeStates, t, dt);
+  stepPhysics(bridgeStates, now, dt);
   riddenMpIndex = lastLandedMpIndex;
 
   lvl.bridges.forEach(b=>{
@@ -1140,13 +1140,13 @@ function gameLoop(){
 
   lvl.crumbles.forEach(c=>{
     if(!isOnPad(myPlayer, c.rect)) return;
-    if(!crumbleIsSolid(c, t)) return;
-    const elapsed = crumbleElapsed(c, t);
+    if(!crumbleIsSolid(c, now)) return;
+    const elapsed = crumbleElapsed(c, now);
     const freshOrRespawned = elapsed === null || elapsed >= (c.warnMs + c.fallMs);
     if(freshOrRespawned){
-      db.ref(`rooms/${roomCode}/state/crumbleStart/${c.id}`).set(t);
+      db.ref(`rooms/${roomCode}/state/crumbleStart/${c.id}`).set(now);
       roomRowState.crumbleStart = roomRowState.crumbleStart || {};
-      roomRowState.crumbleStart[c.id] = t;
+      roomRowState.crumbleStart[c.id] = now;
     }
   });
 
@@ -1154,15 +1154,15 @@ function gameLoop(){
   lvl.launchPads.forEach(lp=>{
     const iOnA = isOnPad(myPlayer, lp.padA), iOnB = isOnPad(myPlayer, lp.padB);
     const iOnEither = iOnA || iOnB;
-    if(iOnA) localPadTouch[lp.id+':A'] = t;
-    if(iOnB) localPadTouch[lp.id+':B'] = t;
-    const myRecentA = localPadTouch[lp.id+':A'] && (t - localPadTouch[lp.id+':A']) <= LAUNCH_GRACE_MS;
-    const myRecentB = localPadTouch[lp.id+':B'] && (t - localPadTouch[lp.id+':B']) <= LAUNCH_GRACE_MS;
+    if(iOnA) localPadTouch[lp.id+':A'] = now;
+    if(iOnB) localPadTouch[lp.id+':B'] = now;
+    const myRecentA = localPadTouch[lp.id+':A'] && (now - localPadTouch[lp.id+':A']) <= LAUNCH_GRACE_MS;
+    const myRecentB = localPadTouch[lp.id+':B'] && (now - localPadTouch[lp.id+':B']) <= LAUNCH_GRACE_MS;
 
     let otherRecentA=false, otherRecentB=false;
     Object.entries(lastRemoteSnapshots).forEach(([name, buf])=>{
       buf.forEach(s=>{
-        if((t - s.t) > LAUNCH_GRACE_MS) return;
+        if((now - s.t) > LAUNCH_GRACE_MS) return;
         if(isOnPad(s, lp.padA)) otherRecentA = true;
         if(isOnPad(s, lp.padB)) otherRecentB = true;
       });
@@ -1181,7 +1181,7 @@ function gameLoop(){
 
     if(bothCovered && iOnEither && launchArmed[lp.id] !== false){
       launchArmed[lp.id] = false;
-      db.ref(`rooms/${roomCode}/state/launchFire/${lp.id}`).set(t);
+      db.ref(`rooms/${roomCode}/state/launchFire/${lp.id}`).set(now);
     }
   });
 
@@ -1248,7 +1248,7 @@ function gameLoop(){
     banner.innerHTML = '';
   }
 
-  drawLevel(remote, bridgeStates, t, dt);
+  drawLevel(remote, bridgeStates, now, dt);
   rafId = requestAnimationFrame(gameLoop);
 }
 
@@ -1393,10 +1393,10 @@ function setupRealtime(){
     if(gamePhase === 'briefing') renderReadyList();
     Object.entries(val).forEach(([name, pos])=>{
       if(name === myName) return;
-      const t = Date.now();
+      const now = Date.now();
       if(!lastRemoteSnapshots[name]) lastRemoteSnapshots[name] = [];
       const arr = lastRemoteSnapshots[name];
-      arr.push({x:pos.x, y:pos.y, t});
+      arr.push({x:pos.x, y:pos.y, t:now});
       if(arr.length > 8) arr.shift();
     });
     if(gamePhase === 'briefing') maybeLaunchGame();
