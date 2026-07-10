@@ -568,6 +568,9 @@ function renderLogin(){
         <input type="text" id="roomInput" placeholder="${t('roomCodePlaceholder')}">
         <button id="enterBtn" style="width:100%;margin-top:16px;" ${configured?'':'disabled'}>${t('enterBtn')}</button>
         <div style="text-align:center;margin-top:14px;">
+          <a href="https://station-605-syeon.vercel.app/" class="link-reset" style="font-size:11px;">${t('nextStoryLink')}</a>
+        </div>
+        <div style="text-align:center;margin-top:8px;">
           <a href="./privacy.html" class="link-reset" style="font-size:11px;">개인정보처리방침</a>
         </div>
       </div>
@@ -613,6 +616,9 @@ function renderBriefing(){
       <div class="sf-panel" style="max-width:520px;">
         <div class="sf-panel-title ok">${t('briefingTitle')}</div>
         <div class="sf-body">${t('briefingBody')}</div>
+        <div style="text-align:center;margin-bottom:14px;">
+          <a href="https://station-605-syeon.vercel.app/" class="link-reset" style="font-size:11px;">${t('nextStoryLink')}</a>
+        </div>
         <div class="sf-hr"></div>
         <div class="small" style="margin-bottom:6px;letter-spacing:1px;">${t('readyCheckLabel')}</div>
         <div id="readyList"></div>
