@@ -71,7 +71,7 @@
   .oxy-bar-inner.critical{animation:oxyPulse .8s ease-in-out infinite;}
   @keyframes oxyPulse{0%,100%{box-shadow:0 0 6px rgba(227,72,72,0.6);opacity:1;}50%{box-shadow:0 0 16px rgba(227,72,72,0.95);opacity:.65;}}
   .oxy-time{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--green);min-width:38px;}
-  .sf-overlay{position:fixed;top:var(--banner-clear);left:0;right:0;bottom:0;background:rgba(4,6,9,0.88);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .sf-overlay{position:fixed;top:var(--banner-clear) !important;left:0;right:0;bottom:0;background:rgba(4,6,9,0.88);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
   .sf-panel{max-width:480px;width:100%;background:var(--panel);border:1px solid var(--green-dim);border-radius:8px;padding:26px 28px;box-shadow:0 0 30px rgba(74,222,128,0.12);}
   .sf-panel.danger{border-color:var(--red);box-shadow:0 0 30px rgba(227,72,72,0.18);}
   .sf-panel-title{font-family:'Share Tech Mono',monospace;font-size:20px;letter-spacing:1px;margin-bottom:14px;}
@@ -100,14 +100,14 @@
   #adBanner *{max-height:60px !important;}
   #adBanner .adsbygoogle{max-width:100%;overflow:hidden !important;}
   .ad-mobile{display:none;}
-  #settingsBtn{position:fixed;top:calc(var(--banner-clear) + 14px);right:14px;z-index:45;width:40px;height:40px;border-radius:50%;padding:0;display:none;align-items:center;justify-content:center;font-size:17px;line-height:1;background:rgba(14,19,27,0.9);}
+  #settingsBtn{position:fixed;top:calc(var(--banner-clear) + 14px) !important;right:14px;z-index:45;width:40px;height:40px;border-radius:50%;padding:0;display:none;align-items:center;justify-content:center;font-size:17px;line-height:1;background:rgba(14,19,27,0.9);}
   @media (hover:none) and (pointer:coarse){
     :root{ --banner-clear: calc(60px + env(safe-area-inset-top)); }
     .ad-desktop{display:none;}
     .ad-mobile{display:inline-block;}
-    #adBanner{bottom:auto;top:0;border-top:none;border-bottom:1px solid var(--line);height:calc(51px + env(safe-area-inset-top));max-height:calc(51px + env(safe-area-inset-top)) !important;padding-top:env(safe-area-inset-top);}
+    #adBanner{bottom:auto;top:0;border-top:none;border-bottom:none;height:calc(50px + env(safe-area-inset-top));max-height:calc(50px + env(safe-area-inset-top)) !important;padding-top:env(safe-area-inset-top);}
     #adBanner *{max-height:50px !important;}
-    #app{padding-top:var(--banner-clear);}
+    #app{padding-top:var(--banner-clear) !important;}
   }
   #langToggleLogin{display:flex;width:100%;justify-content:flex-end;gap:6px;margin-bottom:14px;}
   #langToggleLogin button{padding:6px 12px;font-size:11px;}
