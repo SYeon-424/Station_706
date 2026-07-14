@@ -1031,9 +1031,11 @@ function drawParticles(){
   const wasSmoothing = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = false;
   particles.forEach(p=>{
+    const steppedLife = Math.ceil(p.life * 4) / 4;
+    const s = Math.max(1, Math.round(p.size * steppedLife));
     ctx.globalAlpha = Math.max(0, p.life) * 0.8;
     ctx.fillStyle = p.color || '#c7d1d9';
-    ctx.fillRect(Math.round(p.x - p.size/2), Math.round(p.y - p.size/2), p.size, p.size);
+    ctx.fillRect(Math.round(p.x - s/2), Math.round(p.y - s/2), s, s);
   });
   ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = wasSmoothing;
@@ -1583,9 +1585,6 @@ function setupRealtime(){
     const val = snap.val() || {};
     const newNames = new Set(Object.keys(val));
 
-    // 누가 나갔는지 감지 → 마지막 위치에서 빨갛게 변했다가 픽셀로 흩어지는 연출 시작.
-    // 안 해주면 lastRemoteSnapshots에 남은 마지막 위치를 계속 보간(extrapolate)해서
-    // 나간 사람이 시체처럼 화면에 계속 남아있게 됨.
     onlineNames.forEach(name=>{
       if(name === myName) return;
       if(!newNames.has(name)){
@@ -1734,7 +1733,6 @@ async function leaveRoom(){
   }catch(e){ console.error(e); }
 
   teardownRealtime();
-  // 나가기가 확정되면 상태를 깔끔하게 초기화하기 위해 페이지를 한 번 강제로 새로고침한다.
   location.reload();
 }
 
@@ -1765,8 +1763,6 @@ function initGame(){
   setupUnloadCleanup();
 }
 
-// 새로고침/탭 닫기 등으로 방을 나가려 할 때 브라우저 자체의 확인창을 띄운다.
-// (보안상 브라우저가 커스텀 문구 대신 자체 안내문을 보여주지만, 실수로 나가는 것을 막아준다.)
 window.addEventListener('beforeunload', (e)=>{
   if(inRoomSession){
     e.preventDefault();
