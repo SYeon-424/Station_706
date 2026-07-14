@@ -30,7 +30,6 @@
   :root{
     --bg:#080b10; --panel:#0e131b; --line:#1c2530;
     --green:#4ade80; --green-dim:#2f6b47; --amber:#f5a524; --red:#e34848; --slate:#8a98a8; --white:#eef2f5;
-    --banner-clear: 0px;
   }
   *{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--white);font-family:'IBM Plex Mono',monospace;min-height:100%;touch-action:none;}
@@ -71,7 +70,7 @@
   .oxy-bar-inner.critical{animation:oxyPulse .8s ease-in-out infinite;}
   @keyframes oxyPulse{0%,100%{box-shadow:0 0 6px rgba(227,72,72,0.6);opacity:1;}50%{box-shadow:0 0 16px rgba(227,72,72,0.95);opacity:.65;}}
   .oxy-time{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--green);min-width:38px;}
-  .sf-overlay{position:fixed;top:var(--banner-clear) !important;left:0;right:0;bottom:0;background:rgba(4,6,9,0.88);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .sf-overlay{position:fixed;inset:0;background:rgba(4,6,9,0.88);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
   .sf-panel{max-width:480px;width:100%;background:var(--panel);border:1px solid var(--green-dim);border-radius:8px;padding:26px 28px;box-shadow:0 0 30px rgba(74,222,128,0.12);}
   .sf-panel.danger{border-color:var(--red);box-shadow:0 0 30px rgba(227,72,72,0.18);}
   .sf-panel-title{font-family:'Share Tech Mono',monospace;font-size:20px;letter-spacing:1px;margin-bottom:14px;}
@@ -95,19 +94,15 @@
   .mc-jump:active{background:rgba(245,165,36,0.18);border-color:var(--amber);}
   @media (hover:none) and (pointer:coarse){.desktop-only{display:none !important;}.mobile-only{display:block;}#app{padding-bottom:calc(clamp(78px,23vw,112px) + 28px + env(safe-area-inset-bottom));}.mobile-controls{display:flex;}}
   @media (max-width:480px){#app{padding-left:10px;padding-right:10px;}.top-bar{gap:8px;}.station-title h2{font-size:15px;}.oxy-bar-outer{width:clamp(70px,22vw,120px);}#stageIndicator{font-size:14px !important;}.player-chip{font-size:11px;padding:3px 8px;}.status-pill{font-size:10px;}}
-  #adBanner{position:fixed;left:0;right:0;bottom:0;z-index:35;background:#0e131b;border-top:1px solid var(--line);text-align:center;padding:0;font-size:11px;color:var(--slate);height:61px;max-height:61px;overflow:hidden !important;display:flex;align-items:center;justify-content:center;}
+  #adBanner{width:100%;background:#0e131b;border-bottom:1px solid var(--line);text-align:center;padding:0;font-size:11px;color:var(--slate);height:61px;overflow:hidden;display:flex;align-items:center;justify-content:center;}
   #adBanner a{color:var(--slate);}
-  #adBanner *{max-height:60px !important;}
-  #adBanner .adsbygoogle{max-width:100%;overflow:hidden !important;}
+  #adBanner .adsbygoogle{max-width:100%;overflow:hidden;}
   .ad-mobile{display:none;}
-  #settingsBtn{position:fixed;top:calc(var(--banner-clear) + 14px) !important;right:14px;z-index:45;width:40px;height:40px;border-radius:50%;padding:0;display:none;align-items:center;justify-content:center;font-size:17px;line-height:1;background:rgba(14,19,27,0.9);}
+  #settingsBtn{position:fixed;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:45;width:40px;height:40px;border-radius:50%;padding:0;display:none;align-items:center;justify-content:center;font-size:17px;line-height:1;background:rgba(14,19,27,0.9);}
   @media (hover:none) and (pointer:coarse){
-    :root{ --banner-clear: calc(60px + env(safe-area-inset-top)); }
     .ad-desktop{display:none;}
     .ad-mobile{display:inline-block;}
-    #adBanner{bottom:auto;top:0;border-top:none;border-bottom:none;height:calc(50px + env(safe-area-inset-top));max-height:calc(50px + env(safe-area-inset-top)) !important;padding-top:env(safe-area-inset-top);}
-    #adBanner *{max-height:50px !important;}
-    #app{padding-top:var(--banner-clear) !important;}
+    #adBanner{height:50px;}
   }
   #langToggleLogin{display:flex;width:100%;justify-content:flex-end;gap:6px;margin-bottom:14px;}
   #langToggleLogin button{padding:6px 12px;font-size:11px;}
