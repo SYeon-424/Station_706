@@ -507,6 +507,7 @@ let particles = [];
 let remoteSquash = {};
 let remotePrevY = {};
 let remotePrevVy = {};
+let remoteWasGrounded = {};
 function L(){ return LEVELS[currentLevel]; }
 
 function getMovingPlatformRect(mp, t){
@@ -943,7 +944,7 @@ function stepPhysics(bridgeStates, t, dt){
   for(const s of solids){
     if(rectsOverlap(b,s)){
       if(p.vy > 0){
-        if(!wasOnGround && p.vy > 3){ landingSquash = Math.min(1, p.vy / 14); }
+        if(!wasOnGround && p.vy > 3){ landingSquash = Math.min(1, p.vy / 14); spawnLandingParticles(p.x, s.y, landingSquash); }
         p.y = s.y; p.onGround = true; p.vy = 0; if(s.__mpIndex !== undefined) lastLandedMpIndex = s.__mpIndex;
       }
       else if(p.vy < 0){ p.y = s.y + s.h + PH; p.vy = 0; }
@@ -982,17 +983,70 @@ function drawPlayer(x,y,color,label,squashAmount){
   ctx.fillText(label, x, y-PH-6); ctx.textAlign = 'left';
 }
 
-function updateRemoteSquash(remotePositions, dt){
+function spawnLandingParticles(x, y, intensity){
+  const amt = Math.max(0.2, intensity || 0.3);
+  const count = Math.round(4 + amt * 4);
+  for(let i=0;i<count;i++){
+    const angle = Math.PI + (Math.random()-0.5) * Math.PI * 0.8;
+    const speed = 0.8 + Math.random() * 2 * amt;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 0.6,
+      life: 1,
+      decay: 0.045 + Math.random() * 0.03,
+      size: 2 + Math.random() * 2
+    });
+  }
+}
+
+function updateParticles(dt){
+  for(let i = particles.length - 1; i >= 0; i--){
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 0.15 * dt;
+    p.life -= p.decay * dt;
+    if(p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = '#c7d1d9';
+    ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+  });
+  ctx.globalAlpha = 1;
+}
+
+// 상대 플레이어는 좌표만 받아오므로, 실제로 발판 위에 닿아있는지를 직접 확인해서
+// 착지 순간을 감지한다 (속도 추정만으로는 공중에서도 오탐이 날 수 있음).
+function isStandingOnSolid(pos, solids){
+  const half = PW/2;
+  for(const s of solids){
+    if(pos.x + half > s.x && pos.x - half < s.x + s.w && Math.abs(pos.y - s.y) <= 6){
+      return true;
+    }
+  }
+  return false;
+}
+
+function updateRemoteSquash(remotePositions, solids, dt){
   Object.entries(remotePositions).forEach(([name, pos])=>{
     const prevY = remotePrevY[name];
-    if(prevY !== undefined){
-      const vy = pos.y - prevY;
+    const vy = prevY !== undefined ? (pos.y - prevY) : 0;
+    const grounded = isStandingOnSolid(pos, solids);
+    const wasGrounded = remoteWasGrounded[name] || false;
+    if(grounded && !wasGrounded){
       const prevVy = remotePrevVy[name] || 0;
-      if(prevVy > 3 && vy < prevVy * 0.5){
+      if(prevVy > 2){
         remoteSquash[name] = Math.min(1, prevVy / 14);
+        spawnLandingParticles(pos.x, pos.y, remoteSquash[name]);
       }
-      remotePrevVy[name] = vy;
     }
+    remoteWasGrounded[name] = grounded;
+    remotePrevVy[name] = vy;
     remotePrevY[name] = pos.y;
   });
   Object.keys(remoteSquash).forEach(name=>{
@@ -1082,7 +1136,11 @@ function drawLevel(remotePositions, bridgeStates, t, dt){
     ctx.strokeRect(g.gateX, 0, 12, wallH);
   });
 
-  updateRemoteSquash(remotePositions, dt);
+  const solids = getActivePlatforms(bridgeStates, t);
+  updateParticles(dt);
+  drawParticles();
+
+  updateRemoteSquash(remotePositions, solids, dt);
   Object.entries(remotePositions).forEach(([name,pos])=>drawPlayer(pos.x, pos.y, '#f5a524', name, remoteSquash[name]));
   drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName, landingSquash);
   landingSquash *= Math.pow(0.8, dt || 1);
@@ -1425,6 +1483,7 @@ function applyLevelReset(lvl){
   remoteSquash = {};
   remotePrevY = {};
   remotePrevVy = {};
+  remoteWasGrounded = {};
   riddenMpIndex = null;
   riddenMpPrevRect = null;
   lastFrameTime = null;
