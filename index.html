@@ -504,6 +504,9 @@ let riddenMpPrevRect = null;
 let lastLandedMpIndex = null;
 let landingSquash = 0;
 let particles = [];
+let remoteSquash = {};
+let remotePrevY = {};
+let remotePrevVy = {};
 function L(){ return LEVELS[currentLevel]; }
 
 function getMovingPlatformRect(mp, t){
@@ -966,8 +969,8 @@ function isOnPad(pos, rect){
   return pos.x > rect.x && pos.x < rect.x+rect.w && pos.y >= rect.y-5 && pos.y <= rect.y+5;
 }
 
-function drawPlayer(x,y,color,label){
-  const squash = landingSquash || 0;
+function drawPlayer(x,y,color,label,squashAmount){
+  const squash = squashAmount || 0;
   const w = PW * (1 + squash * 0.35);
   const h = PH * (1 - squash * 0.28);
   ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
@@ -977,6 +980,25 @@ function drawPlayer(x,y,color,label){
   ctx.fillRect(x-6, y-h+8, 4,4); ctx.fillRect(x+2, y-h+8, 4,4);
   ctx.fillStyle = '#c7d1d9'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
   ctx.fillText(label, x, y-PH-6); ctx.textAlign = 'left';
+}
+
+function updateRemoteSquash(remotePositions, dt){
+  Object.entries(remotePositions).forEach(([name, pos])=>{
+    const prevY = remotePrevY[name];
+    if(prevY !== undefined){
+      const vy = pos.y - prevY;
+      const prevVy = remotePrevVy[name] || 0;
+      if(prevVy > 3 && vy < prevVy * 0.5){
+        remoteSquash[name] = Math.min(1, prevVy / 14);
+      }
+      remotePrevVy[name] = vy;
+    }
+    remotePrevY[name] = pos.y;
+  });
+  Object.keys(remoteSquash).forEach(name=>{
+    remoteSquash[name] *= Math.pow(0.8, dt || 1);
+    if(remoteSquash[name] < 0.02) remoteSquash[name] = 0;
+  });
 }
 
 function drawLevel(remotePositions, bridgeStates, t, dt){
@@ -1060,8 +1082,9 @@ function drawLevel(remotePositions, bridgeStates, t, dt){
     ctx.strokeRect(g.gateX, 0, 12, wallH);
   });
 
-  Object.entries(remotePositions).forEach(([name,pos])=>drawPlayer(pos.x, pos.y, '#f5a524', name));
-  drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName);
+  updateRemoteSquash(remotePositions, dt);
+  Object.entries(remotePositions).forEach(([name,pos])=>drawPlayer(pos.x, pos.y, '#f5a524', name, remoteSquash[name]));
+  drawPlayer(myPlayer.x, myPlayer.y, '#4ade80', myName, landingSquash);
   landingSquash *= Math.pow(0.8, dt || 1);
   if(landingSquash < 0.02) landingSquash = 0;
 }
@@ -1399,6 +1422,9 @@ function applyLevelReset(lvl){
   launchArmed = {};
   localPadTouch = {};
   landingSquash = 0;
+  remoteSquash = {};
+  remotePrevY = {};
+  remotePrevVy = {};
   riddenMpIndex = null;
   riddenMpPrevRect = null;
   lastFrameTime = null;
