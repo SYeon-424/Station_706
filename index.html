@@ -30,6 +30,7 @@
   :root{
     --bg:#080b10; --panel:#0e131b; --line:#1c2530;
     --green:#4ade80; --green-dim:#2f6b47; --amber:#f5a524; --red:#e34848; --slate:#8a98a8; --white:#eef2f5;
+    --banner-clear: 0px;
   }
   *{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--white);font-family:'IBM Plex Mono',monospace;min-height:100%;touch-action:none;}
@@ -70,7 +71,7 @@
   .oxy-bar-inner.critical{animation:oxyPulse .8s ease-in-out infinite;}
   @keyframes oxyPulse{0%,100%{box-shadow:0 0 6px rgba(227,72,72,0.6);opacity:1;}50%{box-shadow:0 0 16px rgba(227,72,72,0.95);opacity:.65;}}
   .oxy-time{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--green);min-width:38px;}
-  .sf-overlay{position:fixed;inset:0;background:rgba(4,6,9,0.88);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .sf-overlay{position:fixed;top:var(--banner-clear);left:0;right:0;bottom:0;background:rgba(4,6,9,0.88);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
   .sf-panel{max-width:480px;width:100%;background:var(--panel);border:1px solid var(--green-dim);border-radius:8px;padding:26px 28px;box-shadow:0 0 30px rgba(74,222,128,0.12);}
   .sf-panel.danger{border-color:var(--red);box-shadow:0 0 30px rgba(227,72,72,0.18);}
   .sf-panel-title{font-family:'Share Tech Mono',monospace;font-size:20px;letter-spacing:1px;margin-bottom:14px;}
@@ -99,17 +100,16 @@
   #adBanner *{max-height:60px !important;}
   #adBanner .adsbygoogle{max-width:100%;overflow:hidden !important;}
   .ad-mobile{display:none;}
-  #settingsBtn{position:fixed;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:45;width:40px;height:40px;border-radius:50%;padding:0;display:none;align-items:center;justify-content:center;font-size:17px;line-height:1;background:rgba(14,19,27,0.9);}
+  #settingsBtn{position:fixed;top:calc(var(--banner-clear) + 14px);right:14px;z-index:45;width:40px;height:40px;border-radius:50%;padding:0;display:none;align-items:center;justify-content:center;font-size:17px;line-height:1;background:rgba(14,19,27,0.9);}
   @media (hover:none) and (pointer:coarse){
+    :root{ --banner-clear: calc(60px + env(safe-area-inset-top)); }
     .ad-desktop{display:none;}
     .ad-mobile{display:inline-block;}
     #adBanner{bottom:auto;top:0;border-top:none;border-bottom:1px solid var(--line);height:calc(51px + env(safe-area-inset-top));max-height:calc(51px + env(safe-area-inset-top)) !important;padding-top:env(safe-area-inset-top);}
     #adBanner *{max-height:50px !important;}
-    #app{padding-top:calc(60px + env(safe-area-inset-top));}
-    #langToggleLogin{top:calc(60px + env(safe-area-inset-top));}
-    #settingsBtn{top:calc(68px + env(safe-area-inset-top));}
+    #app{padding-top:var(--banner-clear);}
   }
-  #langToggleLogin{position:absolute;top:0;right:0;display:flex;gap:6px;}
+  #langToggleLogin{position:absolute;top:var(--banner-clear);right:0;display:flex;gap:6px;}
   #langToggleLogin button{padding:6px 12px;font-size:11px;}
   #langToggleLogin button.active{background:rgba(74,222,128,0.18);border-color:var(--green);}
   .settings-lang-row{display:flex;gap:8px;margin-bottom:18px;}
