@@ -40,7 +40,7 @@
   .glow{color:var(--green);text-shadow:0 0 6px rgba(74,222,128,0.5);}
   .muted{color:var(--slate);}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px;margin-bottom:14px;}
-  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;}
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;min-height:70dvh;text-align:center;}
   textarea, input[type=text]{background:#0a0f16;border:1px solid var(--line);color:var(--green);font-family:'Share Tech Mono',monospace;font-size:14px;padding:10px 12px;border-radius:4px;width:100%;outline:none;}
   textarea{min-height:110px;resize:vertical;font-size:12px;}
   button{background:transparent;border:1px solid var(--green-dim);color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer;}
@@ -52,7 +52,7 @@
   .dot{width:8px;height:8px;border-radius:50%;}
   .small{font-size:12px;color:var(--slate);}
   a.link-reset{color:var(--slate);text-decoration:underline;cursor:pointer;font-size:12px;}
-  canvas{display:block;margin:0 auto;max-width:100%;max-height:min(66vh, 620px);width:auto;height:auto;background:#060911;border-radius:6px;border:1px solid var(--line);}
+  canvas{display:block;margin:0 auto;max-width:100%;max-height:min(66vh, 620px);max-height:min(66dvh, 620px);width:auto;height:auto;background:#060911;border-radius:6px;border:1px solid var(--line);}
   .controls-hint{margin-top:10px;font-size:12px;color:var(--slate);text-align:center;}
   .clear-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,11,16,0.92);border:1px solid var(--green);color:var(--green);padding:20px 34px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:22px;text-align:center;animation:bannerPop .35s cubic-bezier(.34,1.56,.64,1) both;}
   @keyframes bannerPop{from{opacity:0;transform:translate(-50%,-50%) scale(.7);}to{opacity:1;transform:translate(-50%,-50%) scale(1);}}
@@ -529,6 +529,11 @@ let myPlayer = { x: START_POS.x, y: START_POS.y, vx:0, vy:0, onGround:false };
 
 function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+function resetScrollTop(){
+  window.scrollTo(0,0);
+  requestAnimationFrame(()=> window.scrollTo(0,0));
+}
+
 function playBgm(){
   const bgm = document.getElementById('bgm');
   if(!bgm) return;
@@ -583,6 +588,7 @@ function renderLogin(){
     </div>
   `;
   bindLangToggle('loginLang');
+  resetScrollTop();
   document.getElementById('enterBtn').onclick = async ()=>{
     const n = document.getElementById('nameInput').value.trim();
     const r = document.getElementById('roomInput').value.trim().toUpperCase();
@@ -640,6 +646,7 @@ function renderBriefing(){
     </div>
   `;
   bindLangToggle('briefingLang');
+  resetScrollTop();
   renderReadyList();
   const leaveLink = document.getElementById('leaveLinkBriefing');
   if(leaveLink) leaveLink.onclick = ()=>{ if(confirm(t('confirmLeaveRoom'))) leaveRoom(); };
@@ -740,6 +747,7 @@ function renderShell(){
   ctx = canvas.getContext('2d');
   showSettingsButton();
   setupMobileControls();
+  resetScrollTop();
 }
 
 function ensureSettingsButton(){
@@ -1348,6 +1356,7 @@ function renderDeathOverlay(){
     await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
   };
   document.getElementById('leaveBtnDead').onclick = ()=> leaveRoom();
+  resetScrollTop();
 }
 
 function renderWinOverlay(){
@@ -1372,6 +1381,7 @@ function renderWinOverlay(){
     await db.ref(`rooms/${roomCode}/state`).set(defaultRoomState());
   };
   document.getElementById('leaveBtnWon').onclick = ()=> leaveRoom();
+  resetScrollTop();
 }
 
 function applyLevelReset(lvl){
