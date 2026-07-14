@@ -944,7 +944,7 @@ function stepPhysics(bridgeStates, t, dt){
   for(const s of solids){
     if(rectsOverlap(b,s)){
       if(p.vy > 0){
-        if(!wasOnGround && p.vy > 3){ landingSquash = Math.min(1, p.vy / 14); spawnLandingParticles(p.x, s.y, landingSquash); }
+        if(!wasOnGround && p.vy > 3){ landingSquash = Math.min(1, p.vy / 14); spawnLandingParticles(p.x, s.y, landingSquash, '#4ade80'); }
         p.y = s.y; p.onGround = true; p.vy = 0; if(s.__mpIndex !== undefined) lastLandedMpIndex = s.__mpIndex;
       }
       else if(p.vy < 0){ p.y = s.y + s.h + PH; p.vy = 0; }
@@ -983,7 +983,7 @@ function drawPlayer(x,y,color,label,squashAmount){
   ctx.fillText(label, x, y-PH-6); ctx.textAlign = 'left';
 }
 
-function spawnLandingParticles(x, y, intensity){
+function spawnLandingParticles(x, y, intensity, colorHex){
   const amt = Math.max(0.2, intensity || 0.3);
   const count = Math.round(4 + amt * 4);
   for(let i=0;i<count;i++){
@@ -995,9 +995,26 @@ function spawnLandingParticles(x, y, intensity){
       vy: Math.sin(angle) * speed - 0.6,
       life: 1,
       decay: 0.045 + Math.random() * 0.03,
-      size: 2 + Math.random() * 2
+      size: 2 + Math.random() * 2,
+      color: colorHex || '#c7d1d9'
     });
   }
+}
+
+// 캐릭터가 움직일 때 뒤로 흩날리는 꼬리 파티클. 캐릭터 색과 동일한 색으로 나가야 함.
+function spawnTrailParticle(x, y, colorHex){
+  if(particles.length > 220) particles.splice(0, particles.length - 220);
+  const grid = 2;
+  particles.push({
+    x: Math.round((x + (Math.random()-0.5)*8) / grid) * grid,
+    y: Math.round((y - 4 + (Math.random()-0.5)*5) / grid) * grid,
+    vx: (Math.random()-0.5)*0.5,
+    vy: -0.12 - Math.random()*0.18,
+    life: 1,
+    decay: 0.022 + Math.random()*0.018,
+    size: 2 + Math.floor(Math.random()*3),
+    color: colorHex
+  });
 }
 
 function updateParticles(dt){
@@ -1012,12 +1029,15 @@ function updateParticles(dt){
 }
 
 function drawParticles(){
+  const wasSmoothing = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
   particles.forEach(p=>{
-    ctx.globalAlpha = Math.max(0, p.life);
-    ctx.fillStyle = '#c7d1d9';
-    ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    ctx.globalAlpha = Math.max(0, p.life) * 0.8;
+    ctx.fillStyle = p.color || '#c7d1d9';
+    ctx.fillRect(Math.round(p.x - p.size/2), Math.round(p.y - p.size/2), p.size, p.size);
   });
   ctx.globalAlpha = 1;
+  ctx.imageSmoothingEnabled = wasSmoothing;
 }
 
 // 상대 플레이어는 좌표만 받아오므로, 실제로 발판 위에 닿아있는지를 직접 확인해서
@@ -1042,7 +1062,7 @@ function updateRemoteSquash(remotePositions, solids, dt){
       const prevVy = remotePrevVy[name] || 0;
       if(prevVy > 2){
         remoteSquash[name] = Math.min(1, prevVy / 14);
-        spawnLandingParticles(pos.x, pos.y, remoteSquash[name]);
+        spawnLandingParticles(pos.x, pos.y, remoteSquash[name], '#f5a524');
       }
     }
     remoteWasGrounded[name] = grounded;
@@ -1137,6 +1157,11 @@ function drawLevel(remotePositions, bridgeStates, t, dt){
   });
 
   const solids = getActivePlatforms(bridgeStates, t);
+
+  if(Math.random() < 0.75) spawnTrailParticle(myPlayer.x, myPlayer.y, '#4ade80');
+  Object.values(remotePositions).forEach(pos=>{
+    if(Math.random() < 0.75) spawnTrailParticle(pos.x, pos.y, '#f5a524');
+  });
   updateParticles(dt);
   drawParticles();
 
